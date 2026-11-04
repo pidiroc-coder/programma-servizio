@@ -820,7 +820,10 @@ function tgBox(){
         if (window.qrcode) { var q = window.qrcode(0, 'M'); q.addData(l.link); q.make(); qr = q.createSvgTag({ cellSize: 6, margin: 2 }); }
         $('tgqr').innerHTML = '<div class="row" style="align-items:flex-start;gap:16px"><div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px;line-height:0">' + qr + '</div>' +
           '<div style="font-size:14px;max-width:300px"><p style="margin-top:0">Inquadra il QR con la fotocamera del telefono, poi nel bot premi <b>Avvia</b>. Il codice vale 30 minuti ed è solo tuo.</p>' +
-          '<div class="row"><a class="btn pri" href="' + esc(l.link) + '" target="_blank" rel="noopener">Apri Telegram</a><button class="btn" id="tgfatto">Ho premuto Avvia</button></div></div></div>';
+          '<div class="row"><a class="btn pri" href="' + esc(l.link) + '" target="_blank" rel="noopener">Apri Telegram</a><button class="btn" id="tgfatto">Ho premuto Avvia</button></div>' +
+          '<p style="margin:12px 0 4px">Non vedi il tasto <b>Avvia</b>? Invia al bot questo codice come messaggio:</p>' +
+          '<div class="row"><span class="mono" style="font-size:18px;letter-spacing:.06em;background:#efe9dc;border-radius:6px;padding:6px 10px;user-select:all">' + esc(l.codice) + '</span><button class="btn small" id="tgcopia">Copia</button></div></div></div>';
+        $('tgcopia').onclick = function(){ try { navigator.clipboard.writeText(l.codice); toast('Codice copiato'); } catch (e) {} };
         $('tgfatto').onclick = function(){ toast('Controllo…'); setTimeout(tgBox, 1500); };
         // controllo automatico per qualche minuto
         var n = 0, tm = setInterval(function(){ n++; if (!$('tgqr') || n > 24) return clearInterval(tm); api('telegramMio', {}, true).then(function(t){ if (t.collegato) { clearInterval(tm); toast('Telegram collegato'); tgBox(); } }); }, 10000);
