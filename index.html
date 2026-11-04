@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Programma di Servizio</title>
+<meta name="theme-color" content="#0f3d3a">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Programma">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<style>
+:root{
+  --top:#0f3d3a; --top-txt:#e7f2ef; --top-dim:#b9d6d0; --accent:#f2b544;
+  --bg:#f6f3ec; --card:#fffdf8; --line:#e4ddcf; --ink:#1c1917; --dim:#57534e; --label:#6b5d45;
+  --pri:#0f5c55; --pri-h:#0a3f3a;
+  --ok:#137333; --ok-bg:#e3f1e6; --warn:#8a5a00; --warn-bg:#fdf0d2; --err:#b3261e; --err-bg:#fbe4e1;
+  --mod:#fff2a8; --add:#d9f2d0; --del:#f8d0cc;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans','Segoe UI',sans-serif;font-size:15px}
+a{color:var(--pri)}
+button,input,select,textarea{font:inherit;color:inherit}
+.mono{font-family:'IBM Plex Mono',monospace}
+.hidden{display:none!important}
+header.top{background:var(--top);color:var(--top-txt);position:sticky;top:0;z-index:20}
+header.top .in{max-width:1360px;margin:0 auto;padding:0 16px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 22px;min-height:60px}
+.brand{font-weight:700;font-size:17px;color:#fff}.brand span{color:var(--accent)}
+nav.menu{display:flex;flex-wrap:wrap;gap:4px;font-size:14px;font-weight:500}
+nav.menu button{background:none;border:0;color:var(--top-txt);padding:8px 13px;border-radius:6px;cursor:pointer;min-height:40px}
+nav.menu button.on{background:var(--accent);color:var(--top);font-weight:600}
+.who{margin-left:auto;font-size:13px;color:var(--top-dim);display:flex;gap:10px;align-items:center}
+.who button{background:none;border:1px solid #3d6b66;color:var(--top-txt);border-radius:6px;padding:5px 10px;cursor:pointer}
+main{max-width:1360px;margin:0 auto;padding:22px 16px 80px}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--label)}
+h1{margin:2px 0 14px;font-size:28px}
+h2{font-size:17px;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 18px}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.kpi .l{font-size:12px;color:var(--dim)}.kpi .v{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:42px;padding:0 16px;border-radius:6px;border:1px solid var(--pri);background:var(--card);color:var(--pri);font-weight:600;cursor:pointer}
+.btn.pri{background:var(--pri);color:#fff}.btn.pri:hover{background:var(--pri-h)}
+.btn.warn{border-color:var(--warn);color:var(--warn)}
+.btn.err{border-color:var(--err);color:var(--err)}
+.btn.small{min-height:34px;padding:0 10px;font-size:13px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.chip{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}.chip.warn{background:var(--warn-bg);color:var(--warn)}.chip.err{background:var(--err-bg);color:var(--err)}
+.chip.mod{background:var(--mod);color:#5c4a00}.chip.add{background:var(--add);color:#1d5a12}.chip.del{background:var(--del);color:#8c1d14}
+.msg{padding:10px 14px;border-radius:6px;margin:0 0 12px;font-size:14px}
+.msg.err{background:var(--err-bg);color:var(--err)}.msg.ok{background:var(--ok-bg);color:var(--ok)}.msg.warn{background:var(--warn-bg);color:var(--warn)}
+/* login */
+.login{max-width:380px;margin:9vh auto 0}
+.login .card{padding:26px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--label)}
+label.f input,label.f select,label.f textarea{font-weight:400;font-size:15px;border:1px solid #cfc6b4;border-radius:6px;padding:9px 10px;background:#fff;min-height:42px;width:100%}
+label.f.miss input,label.f.miss select{border-color:var(--err);background:#fff8f7}
+/* giorni */
+.days{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.days button{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:7px 12px;cursor:pointer;font-weight:600;font-size:14px}
+.days button.on{background:var(--top);color:#fff;border-color:var(--top)}
+.day{margin:0 0 22px}
+.dayhead{display:flex;align-items:baseline;gap:12px;margin:0 0 8px;border-bottom:2px solid var(--top);padding-bottom:4px}
+.dayhead h2{margin:0;font-size:18px}
+.sede{margin:10px 0 4px;font-size:13px;font-weight:700;color:var(--label);letter-spacing:.06em}
+table.rows{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);font-size:13.5px}
+table.rows th{background:#efe9dc;text-align:left;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--label);padding:6px 8px;border-bottom:1px solid var(--line)}
+table.rows td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+tr.r-mod td{background:#fffbe0}tr.r-add td{background:#eef9ea}tr.r-del td{background:#fdeceb;text-decoration:line-through;color:#8c1d14}
+tr.r-del td.act{text-decoration:none}
+td.act{white-space:nowrap;text-align:right}
+.empty{color:var(--dim);font-size:13px;padding:6px 2px}
+.tw{overflow-x:auto}
+/* editor */
+.editor{border:2px solid var(--accent);background:#fffaf0}
+.editor .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 12px}
+.editor .wide{grid-column:span 2}
+.nobox{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;margin-top:4px;color:var(--ink)}
+label.f .nobox input{width:20px;height:20px;min-height:0;padding:0;margin:0}
+.bar{height:8px;background:#e8e1d2;border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--pri)}
+.bar.over i{background:var(--err)}.bar.near i{background:var(--accent)}
+ul.clean{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#1c1917;color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;z-index:50;max-width:92vw}
+.spin{position:fixed;inset:0;background:rgba(246,243,236,.55);display:flex;align-items:center;justify-content:center;z-index:40;font-weight:600;color:var(--top)}
+@media (max-width:720px){
+  h1{font-size:23px}
+  .editor .wide{grid-column:span 1}
+  table.rows thead{display:none}
+  table.rows,table.rows tbody,table.rows tr,table.rows td{display:block;width:100%}
+  table.rows tr{border-bottom:1px solid var(--line);padding:6px 0}
+  table.rows td{border:0;padding:2px 10px}
+  table.rows td[data-l]::before{content:attr(data-l) ': ';font-weight:600;color:var(--label);font-size:12px}
+  td.act{text-align:left;padding-top:6px}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict';
+var API = (window.PDS_CONFIG && window.PDS_CONFIG.API_URL) || '';
+var S = { token: null, utente: null, liste: null, sett: null, vista: 'compila', giorno: null, ed: null, msg: null };
+var GIORNI = { LUN: 'Lunedì', MAR: 'Martedì', MER: 'Mercoledì', GIO: 'Giovedì', VEN: 'Venerdì', SAB: 'Sabato' };
+var CAMPI = ['uoc','auto','loc','guida','aff','art','eq','cdc','p','r','mat','n'];
+
+function $(id){ return document.getElementById(id); }
+function esc(t){ return String(t == null ? '' : t).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function ls(k, v){ try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
+function toast(t){ var d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(function(){ d.remove(); }, 3500); }
+var nSpin = 0;
+function spin(on){ nSpin += on ? 1 : -1; var el = $('spin'); if (nSpin > 0 && !el) { el = document.createElement('div'); el.id = 'spin'; el.className = 'spin'; el.textContent = 'Attendere…'; document.body.appendChild(el); } if (nSpin <= 0 && el) { nSpin = 0; el.remove(); } }
+
+function api(azione, dati, silenzioso){
+  if (!API) return Promise.reject(new Error('Manca API_URL in config.js'));
+  var body = Object.assign({}, dati || {}, { azione: azione, token: S.token });
+  if (!silenzioso) spin(true);
+  return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j.ok) {
+        if (j.errore === 'SESSIONE_SCADUTA') { esci(true); throw new Error('Sessione scaduta: accedi di nuovo.'); }
+        if (j.errore === 'CAMBIO_PASSWORD') { vistaCambioObbligatorio(''); throw new Error('Scegli prima una nuova password.'); }
+        throw new Error(j.errore || 'Errore');
+      }
+      return j.dati;
+    })
+    .finally(function(){ if (!silenzioso) spin(false); });
+}
+
+function ruolo(){ return S.utente ? S.utente.ruolo : ''; }
+function puoCompilare(){ return ['COMPILATORE','DIRIGENTE','ADMIN'].indexOf(ruolo()) !== -1; }
+function isDir(){ return ruolo() === 'DIRIGENTE' || ruolo() === 'ADMIN'; }
+function isAdmin(){ return ruolo() === 'ADMIN'; }
+
+// ---------------- avvio / login ----------------
+function avvio(){
+  S.token = ls('pds_token');
+  try { S.utente = JSON.parse(ls('pds_utente') || 'null'); } catch (e) { S.utente = null; }
+  if (!S.token || !S.utente) return vistaLogin();
+  caricaTutto();
+}
+
+function vistaLogin(err){
+  $('app').innerHTML =
+    '<div class="login"><div class="eyebrow">ARPA Molise · UOC Servizi Laboratoristici</div><h1>Programma di Servizio</h1>' +
+    '<form class="card grid" id="flog" autocomplete="on">' + (err ? '<div class="msg err">' + esc(err) + '</div>' : '') +
+    '<label class="f">Nome utente<input name="u" autocomplete="username" required autocapitalize="none"></label>' +
+    '<label class="f">Password<input name="p" type="password" autocomplete="current-password" required></label>' +
+    '<button class="btn pri" type="submit">Accedi</button>' +
+    '<div style="font-size:12px;color:var(--dim)">Le credenziali le crea l\'amministratore. Dopo 5 tentativi errati l\'accesso si blocca per 15 minuti.</div>' +
+    '</form></div>';
+  $('flog').onsubmit = function(e){
+    e.preventDefault();
+    var f = e.target;
+    api('login', { utente: f.u.value.trim(), password: f.p.value }).then(function(d){
+      S.token = d.token; S.utente = d.utente;
+      ls('pds_token', d.token); ls('pds_utente', JSON.stringify(d.utente));
+      if (d.cambioObbligatorio) vistaCambioObbligatorio(f.p.value);
+      else caricaTutto();
+    }).catch(function(er){ vistaLogin(er.message); });
+  };
+}
+
+// Primo accesso con password temporanea: si deve scegliere una password nuova
+function vistaCambioObbligatorio(temporanea, err){
+  $('app').innerHTML =
+    '<div class="login"><div class="eyebrow">Primo accesso</div><h1>Scegli la tua password</h1>' +
+    '<form class="card grid" id="fcam">' + (err ? '<div class="msg err">' + esc(err) + '</div>' : '') +
+    '<div style="font-size:14px">Ciao <b>' + esc(S.utente.nome || S.utente.username) + '</b>, stai usando una password temporanea data dall\'amministratore. Per continuare scegline una tua: la conosci solo tu.</div>' +
+    (temporanea ? '' : '<label class="f">Password temporanea<input type="password" name="a" autocomplete="current-password" required></label>') +
+    '<label class="f">Nuova password (almeno 8 caratteri)<input type="password" name="n" autocomplete="new-password" minlength="8" required></label>' +
+    '<label class="f">Ripeti nuova password<input type="password" name="r" autocomplete="new-password" minlength="8" required></label>' +
+    '<button class="btn pri" type="submit">Salva e continua</button><button class="btn" type="button" id="bescc">Esci</button></form></div>';
+  $('bescc').onclick = function(){ esci(); };
+  $('fcam').onsubmit = function(e){
+    e.preventDefault(); var f = e.target;
+    var vecchia = temporanea || f.a.value;
+    if (f.n.value !== f.r.value) return vistaCambioObbligatorio(temporanea, 'Le due password non coincidono.');
+    api('cambiaPassword', { vecchia: vecchia, nuova: f.n.value }).then(function(d){
+      S.utente = d.utente; ls('pds_utente', JSON.stringify(d.utente));
+      toast('Password salvata'); caricaTutto();
+    }).catch(function(er){ vistaCambioObbligatorio(temporanea, er.message); });
+  };
+}
+
+function esci(silenzioso){
+  if (!silenzioso && S.token) api('logout', {}, true).catch(function(){});
+  ls('pds_token', null); ls('pds_utente', null);
+  S.token = null; S.utente = null; S.ed = null;
+  vistaLogin();
+}
+
+function caricaTutto(){
+  Promise.all([api('liste'), api('settimana')]).then(function(r){
+    S.liste = r[0]; S.sett = r[1];
+    S.vista = ls('pds_vista') || 'compila';
+    if (S.vista === 'approva' && !isDir()) S.vista = 'compila';
+    if (S.vista === 'admin' && !isAdmin()) S.vista = 'compila';
+    disegna();
+  }).catch(function(e){ if (S.token) vistaErrore(e.message); });
+}
+
+function vistaErrore(t){ $('app').innerHTML = '<main><div class="msg err">' + esc(t) + '</div><button class="btn" onclick="caricaTutto()">Riprova</button> <button class="btn" onclick="esci()">Esci</button></main>'; }
+
+function ricarica(){ return api('settimana').then(function(d){ S.sett = d; disegna(); }); }
+
+// ---------------- telaio ----------------
+function disegna(){
+  var voci = [['dash','Dashboard'],['compila','In compilazione'],['archivio','Archivio']];
+  if (isDir()) voci.splice(2, 0, ['approva','Approvazione']);
+  if (isAdmin()) voci.push(['admin','Amministrazione']);
+  var u = S.utente;
+  $('app').innerHTML =
+    '<header class="top"><div class="in"><div class="brand">PdS<span>·</span>ARPA Molise</div><nav class="menu" aria-label="Menu principale">' +
+    voci.map(function(v){ return '<button data-v="' + v[0] + '" class="' + (S.vista === v[0] ? 'on' : '') + '">' + v[1] + '</button>'; }).join('') +
+    '</nav><div class="who"><span>' + esc(u.nome || u.username) + ' · ' + esc(u.ruolo.toLowerCase()) + '</span><button id="bacc">Account</button><button id="besc">Esci</button></div></div></header><main id="main"></main>';
+  document.querySelectorAll('nav.menu button').forEach(function(b){ b.onclick = function(){ if (S.ed && Object.keys(S.ed.dati || {}).some(function(k){ return S.ed.dati[k]; }) && !confirm('L\'uscita aperta non è salvata. Chiuderla?')) return; S.vista = b.dataset.v; ls('pds_vista', S.vista); S.msg = null; S.ed = null; api('settimana').then(function(d){ S.sett = d; disegna(); }).catch(function(e){ toast(e.message); }); }; });
+  $('besc').onclick = function(){ esci(); };
+  $('bacc').onclick = function(){ S.vista = 'account'; disegna(); };
+  ({ dash: vDash, compila: vCompila, approva: vApprova, archivio: vArchivio, admin: vAdmin, account: vAccount }[S.vista] || vCompila)();
+}
+
+function intestazione(sotto){
+  var p = S.sett.programma;
+  var stato = p.approvato ? (p.revInCorso ? '<span class="chip warn">Approvato · Rev.' + (p.revApprovata + 1) + ' in corso</span>' : '<span class="chip ok">Approvato' + (p.revApprovata ? ' · Rev.' + p.revApprovata : '') + '</span>') : '<span class="chip warn">In compilazione</span>';
+  return '<div class="eyebrow">Programma n. ' + esc(p.numero) + ' · ' + esc(p.settimana) + '</div><h1>' + esc(sotto) + ' ' + stato + '</h1>' +
+    (S.msg ? '<div class="msg ' + S.msg.t + '">' + esc(S.msg.x) + '</div>' : '');
+}
+
+// ---------------- compilazione ----------------
+function vCompila(){
+  var p = S.sett.programma;
+  var giorni = S.sett.giorni;
+  if (!S.giorno) S.giorno = 'TUTTI';
+  var h = intestazione('Settimana in compilazione');
+  if (puoCompilare()) {
+    h += '<div class="row" style="margin-bottom:14px"><button class="btn pri" id="bnuova">+ Nuova uscita</button>' +
+      (p.approvato ? '<span style="font-size:13px;color:var(--dim)">Il programma è approvato: ogni modifica crea la revisione da far approvare al dirigente.</span>' : '') + '</div>';
+  }
+  h += '<div id="edbox"></div>';
+  var miei = S.sett.bozze || [];
+  if (miei.length) {
+    h += '<section class="card" style="margin-bottom:16px"><h2>Bozze non salvate (' + miei.length + ')</h2><ul class="clean">' +
+      miei.map(function(b){
+        var vecchia = (Date.now() - dataIt(b.creata)) > 48 * 3600 * 1000;
+        return '<li class="row"><span class="chip ' + (vecchia ? 'err' : 'warn') + '">' + (vecchia ? 'Ferma da oltre 48 ore' : 'Bozza') + '</span><b>' + esc(GIORNI[b.giorno] || b.giorno) + ' · ' + esc(b.sede) + '</b> ' + esc((b.dati && b.dati.loc) || '(senza località)') +
+          ' <span style="font-size:12px;color:var(--dim)">' + esc(b.autore) + ' · ' + esc(b.aggiornata) + '</span>' +
+          (b.mia || isAdmin() ? ' <button class="btn small" data-bozza="' + esc(b.id) + '">Riprendi</button>' : '') + '</li>';
+      }).join('') + '</ul></section>';
+  }
+  h += '<div class="days">' + ['TUTTI'].concat(giorni.map(function(g){ return g.key; })).map(function(k){
+    return '<button data-g="' + k + '" class="' + (S.giorno === k ? 'on' : '') + '">' + (k === 'TUTTI' ? 'Tutta la settimana' : GIORNI[k]) + '</button>';
+  }).join('') + '</div>';
+  giorni.forEach(function(g){
+    if (S.giorno !== 'TUTTI' && S.giorno !== g.key) return;
+    var n = 0, ok = 0;
+    g.blocchi.forEach(function(b){ b.righe.forEach(function(r){ if (r.stato !== 'Annullata') { n++; if (r.salvata) ok++; } }); });
+    h += '<section class="day"><div class="dayhead"><h2>' + esc(g.label) + '</h2><span style="font-size:13px;color:var(--dim)">' + n + ' uscite · ' + ok + ' salvate</span></div>';
+    g.blocchi.forEach(function(b){
+      h += '<div class="sede">' + esc(b.sede) + '</div>';
+      if (!b.righe.length) { h += '<div class="empty">Nessuna uscita.</div>'; return; }
+      h += '<div class="tw"><table class="rows"><thead><tr><th>Stato</th><th>UOC</th><th>Auto</th><th>Località</th><th>Guida</th><th>Affidatario</th><th>Equipaggio / note</th><th>CdC</th><th>Orari</th><th>Matrice</th><th>N.</th><th>Codici</th><th>Salvata da</th><th></th></tr></thead><tbody>';
+      b.righe.forEach(function(r){ h += rigaHtml(r, g.key, b.sede); });
+      h += '</tbody></table></div>';
+    });
+    h += '</section>';
+  });
+  $('main').innerHTML = h;
+  if ($('bnuova')) $('bnuova').onclick = function(){ apriEditor({ giorno: S.giorno !== 'TUTTI' ? S.giorno : primoGiorno(), sede: sedeUtente(), dati: {} }); };
+  document.querySelectorAll('.days button').forEach(function(b){ b.onclick = function(){ S.giorno = b.dataset.g; vCompila(); }; });
+  document.querySelectorAll('[data-bozza]').forEach(function(b){ b.onclick = function(){ var bz = miei.filter(function(x){ return x.id === b.dataset.bozza; })[0]; apriEditor({ bozzaId: bz.id, giorno: bz.giorno, sede: bz.sede, dati: bz.dati || {} }); }; });
+  document.querySelectorAll('[data-sblocca]').forEach(function(b){ b.onclick = function(){ sblocca(Number(b.dataset.sblocca)); }; });
+  document.querySelectorAll('[data-modifica]').forEach(function(b){ b.onclick = function(){ modificaRiga(Number(b.dataset.modifica)); }; });
+  document.querySelectorAll('[data-elimina]').forEach(function(b){ b.onclick = function(){ eliminaRiga(Number(b.dataset.elimina)); }; });
+  if (S.ed) disegnaEditor();
+}
+
+function rigaHtml(r, giorno, sede){
+  var p = S.sett.programma;
+  var cls = r.stato === 'Annullata' ? 'r-del' : (p.approvato && r.rev > p.revApprovata ? (r.modifica === 'AGGIUNTA' ? 'r-add' : (r.modifica === 'MODIFICATA' ? 'r-mod' : '')) : '');
+  var chip;
+  if (r.stato === 'Annullata') chip = '<span class="chip del">Annullata</span>';
+  else if (r.stato === 'In modifica') chip = '<span class="chip warn">In modifica</span>';
+  else if (r.salvata) chip = '<span class="chip ok">Salvata</span>';
+  else if (r.mancanti && r.mancanti.length) chip = '<span class="chip err" title="Mancano: ' + esc(r.mancanti.join(', ')) + '">Da completare</span>';
+  else chip = '<span class="chip warn" title="Completa ma non ancora salvata dall\'app">Da salvare</span>';
+  if (r.rev && r.modifica && r.stato !== 'Annullata') chip += ' <span class="chip ' + (r.modifica === 'AGGIUNTA' ? 'add' : 'mod') + '">Rev.' + r.rev + '</span>';
+  var prec = r.precedenti || {};
+  function cel(k, v){ var vv = v === undefined ? r[k] : v; if (k === 'cod') vv = String(vv || '').replace(/-/g, '\u2011'); var cambiato = r.modifica === 'MODIFICATA' && prec[k] !== undefined && String(prec[k]) !== String(r[k]); return esc(vv) + (cambiato ? '<div style="font-size:11.5px;color:#7a6400"><s>' + esc(prec[k] || '—') + '</s></div>' : ''); }
+  var az = '';
+  if (puoCompilare() && r.stato !== 'Annullata') {
+    if (r.stato === 'In modifica' || !r.salvata) az += '<button class="btn small pri" data-modifica="' + r.riga + '">Modifica</button> ';
+    else az += '<button class="btn small" data-sblocca="' + r.riga + '">Sblocca e modifica</button> ';
+    az += '<button class="btn small err" data-elimina="' + r.riga + '">' + (p.approvato && !(r.modifica === 'AGGIUNTA' && r.rev > p.revApprovata) ? 'Annulla' : 'Svuota') + '</button>';
+  }
+  return '<tr class="' + cls + '"><td>' + chip + '</td><td data-l="UOC">' + cel('uoc') + '</td><td data-l="Auto">' + cel('auto') + '</td><td data-l="Località"><b>' + cel('loc') + '</b></td>' +
+    '<td data-l="Guida">' + cel('guida') + '</td><td data-l="Affidatario">' + cel('aff') + '</td><td data-l="Equipaggio">' + cel('eq') + '</td><td data-l="CdC">' + cel('cdc') + '</td>' +
+    '<td data-l="Orari" class="mono">' + esc(r.p) + (r.r ? '–' + esc(r.r) : '') + '</td><td data-l="Matrice">' + cel('mat') + '</td><td data-l="N." class="mono">' + cel('n') + '</td>' +
+    '<td data-l="Codici" class="mono" style="font-size:12px">' + cel('cod') + '</td><td data-l="Salvata da" style="font-size:12px;color:var(--dim)">' + esc(r.chi) + (r.quando ? '<br>' + esc(r.quando) : '') + '</td><td class="act">' + az + '</td></tr>';
+}
+
+function dataIt(t){ var m = String(t || '').match(/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/); if (!m) return Date.now(); var d = new Date(); var x = new Date(d.getFullYear(), Number(m[2]) - 1, Number(m[1]), Number(m[3]), Number(m[4])); if (x > d) x.setFullYear(d.getFullYear() - 1); return x.getTime(); }
+function primoGiorno(){ return S.sett.giorni.length ? S.sett.giorni[0].key : 'LUN'; }
+function sedeUtente(){
+  var s = (S.utente.sede || '').toUpperCase();
+  var sedi = S.sett.sedi || [];
+  var trovata = sedi.filter(function(x){ return x === s || x === 'SEDE ' + s || x.replace('SEDE ', '') === s; })[0];
+  return trovata || sedi[0] || '';
+}
+function trovaRiga(n){ var t = null; S.sett.giorni.forEach(function(g){ g.blocchi.forEach(function(b){ b.righe.forEach(function(r){ if (r.riga === n) t = { r: r, giorno: g.key, sede: b.sede }; }); }); }); return t; }
+
+function sblocca(n){
+  var t = trovaRiga(n); if (!t) return;
+  var p = S.sett.programma;
+  var testo = p.approvato ? 'Il programma è approvato: la modifica creerà la Rev.' + (p.revApprovata + 1) + ' da far approvare al dirigente. Sbloccare la riga?' : 'Sbloccare la riga per modificarla? Finché non la salvi di nuovo il programma non si può approvare.';
+  if (!confirm(testo)) return;
+  api('sbloccaRiga', { riga: n }).then(function(){ return ricarica(); }).then(function(){ modificaRiga(n); }).catch(function(e){ toast(e.message); });
+}
+
+function modificaRiga(n){
+  var t = trovaRiga(n); if (!t) return;
+  var d = {}; CAMPI.forEach(function(k){ d[k] = t.r[k]; });
+  apriEditor({ riga: n, giorno: t.giorno, sede: t.sede, dati: d, codici: t.r.cod });
+}
+
+function eliminaRiga(n){
+  var t = trovaRiga(n); if (!t) return;
+  var p = S.sett.programma;
+  var annulla = p.approvato && !(t.r.modifica === 'AGGIUNTA' && t.r.rev > p.revApprovata);
+  var testo = annulla ? 'Annullare l\'uscita "' + t.r.loc + '"? Resterà visibile barrata nella revisione.' : 'Svuotare la riga "' + t.r.loc + '"?' + (t.r.cod ? ' I codici ' + t.r.cod + ' non verranno riutilizzati.' : '');
+  if (!confirm(testo)) return;
+  api('svuotaRiga', { riga: n }).then(function(){ toast(annulla ? 'Uscita annullata' : 'Riga svuotata'); return ricarica(); }).catch(function(e){ toast(e.message); });
+}
+
+// ---------------- editor uscita ----------------
+function apriEditor(ed){ S.ed = ed; S.ed.errore = null; vCompila(); var box = $('edbox'); if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+
+function opz(lista, val, vuota){
+  var h = vuota !== false ? '<option value="">—</option>' : '';
+  var trovato = false;
+  lista.forEach(function(o){ var v = typeof o === 'string' ? o : o.v; var t = typeof o === 'string' ? o : o.t; if (v === val) trovato = true; h += '<option value="' + esc(v) + '"' + (v === val ? ' selected' : '') + '>' + esc(t) + '</option>'; });
+  if (val && !trovato) h += '<option value="' + esc(val) + '" selected>' + esc(val) + '</option>';
+  return h;
+}
+
+function mancanti(d){
+  var m = [];
+  if (!d.uoc) m.push('uoc'); if (!d.auto) m.push('auto'); if (!d.loc) m.push('loc');
+  var n = String(d.n || '').trim().toUpperCase(), num = Number(n);
+  if (!n || (n !== 'NO' && !(num > 0 && Math.floor(num) === num))) m.push('n');
+  var con = n && n !== 'NO' && num > 0;
+  if (con && !d.mat) m.push('mat'); if (con && !d.cdc) m.push('cdc');
+  if ((con || (d.auto && d.auto.toUpperCase() !== 'NO AUTO')) && !d.aff) m.push('aff');
+  if (d.auto && d.auto.toUpperCase() !== 'NO AUTO' && !d.art) m.push('art');
+  return m;
+}
+var NOMI = { uoc: 'UOC', auto: 'Auto', loc: 'Località', n: 'Numero campioni (numero o NO)', mat: 'Matrice', cdc: 'Centro di costo', aff: 'Affidatario', art: 'Art. 5' };
+
+function disegnaEditor(){
+  var ed = S.ed, d = ed.dati, L = S.liste;
+  var p = S.sett.programma;
+  var titolo = ed.riga ? 'Modifica uscita' : (ed.bozzaId ? 'Bozza' : 'Nuova uscita');
+  var mat = L.matrici[d.mat];
+  var nNo = String(d.n || '').toUpperCase() === 'NO';
+  var m = mancanti(d);
+  function f(k, lab, ctrl, cls){ return '<label class="f ' + (cls || '') + (ed.provato && m.indexOf(k) !== -1 ? ' miss' : '') + '">' + lab + ctrl + '</label>'; }
+  var giorniOpz = S.sett.giorni.map(function(g){ return { v: g.key, t: g.label }; });
+  var bloccaPos = !!(ed.riga && p.approvato);
+  var h = '<section class="card editor" style="margin-bottom:18px"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">' + titolo + '</h2>' +
+    '<span style="font-size:12px;color:var(--dim)">La riga va nel foglio solo con "Salva riga". Fino ad allora resta una bozza visibile solo nell\'app.</span></div>' +
+    (ed.errore ? '<div class="msg err">' + esc(ed.errore) + '</div>' : '') +
+    '<div class="fields">' +
+    f('giorno', 'Giorno', '<select id="e_giorno"' + (bloccaPos ? ' disabled' : '') + '>' + opz(giorniOpz, ed.giorno, false) + '</select>') +
+    f('sede', 'Sede', '<select id="e_sede"' + (bloccaPos ? ' disabled' : '') + '>' + opz(S.sett.sedi, ed.sede, false) + '</select>') +
+    f('uoc', 'UOC *', '<select data-k="uoc">' + opz(L.uoc, d.uoc) + '</select>') +
+    f('auto', 'Auto *', '<select data-k="auto">' + opz(L.auto.map(function(a){ return { v: a.nome, t: a.nome + (a.sede ? ' (' + a.sede + ')' : '') }; }), d.auto) + '</select>') +
+    f('loc', 'Località da raggiungere *', '<input data-k="loc" value="' + esc(d.loc) + '">', 'wide') +
+    f('guida', 'Personale guida', '<select data-k="guida">' + opz(L.guide, d.guida) + '</select>') +
+    f('aff', 'Personale affidatario', '<input data-k="aff" list="dl_pers" value="' + esc(d.aff) + '">') +
+    f('art', 'Art. 5 c.2', '<select data-k="art">' + opz(L.articoli, d.art) + '</select>') +
+    f('eq', 'Equipaggio / note', '<input data-k="eq" list="dl_pers" value="' + esc(d.eq) + '">', 'wide') +
+    f('cdc', 'Centro di costo', '<select data-k="cdc">' + opz(L.cdc.map(function(c){ return { v: c.codice, t: c.codice + (c.descrizione ? ' · ' + c.descrizione : '') }; }), d.cdc) + '</select>', 'wide') +
+    f('p', 'Partenza', '<input data-k="p" type="time" value="' + esc(d.p) + '">') +
+    f('r', 'Rientro', '<input data-k="r" type="time" value="' + esc(d.r) + '">') +
+    f('mat', 'Matrice', '<select data-k="mat"' + (nNo ? ' disabled' : '') + '>' + opz(Object.keys(L.matrici), d.mat) + '</select>') +
+    f('n', 'Numero campioni *', '<input data-k="n" type="number" min="1" step="1" inputmode="numeric" value="' + (nNo ? '' : esc(d.n)) + '"' + (nNo ? ' disabled' : '') + '><span class="nobox"><input type="checkbox" id="e_no"' + (nNo ? ' checked' : '') + '> Nessun campione (NO)</span>') +
+    '</div>' +
+    '<datalist id="dl_pers">' + L.personale.map(function(x){ return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
+    (mat ? '<div style="font-size:12.5px;color:var(--dim);margin-top:8px">' + esc(mat.nome) + ': giorni ' + esc(mat.giorni.join(', ')) + (mat.maxGiorno ? ' · max ' + mat.maxGiorno + (mat.perImpianti ? ' impianti' : '') + '/giorno' : '') + (mat.maxSettimana ? ' · max ' + mat.maxSettimana + '/settimana' + (mat.gruppo ? ' (' + esc(mat.gruppo) + ')' : '') : '') + (mat.oraLimite ? ' · ' + esc(mat.oraLimite) : '') + '</div>' : '') +
+    (ed.codici ? '<div style="font-size:12.5px;margin-top:6px">Codici attuali: <span class="mono">' + esc(ed.codici) + '</span> (restano se non cambi UOC, matrice e numero)</div>' : '') +
+    '<div id="e_manc" style="font-size:13px;margin-top:10px;color:' + (m.length ? 'var(--err)' : 'var(--ok)') + '">' + (m.length ? 'Da completare: ' + m.map(function(k){ return NOMI[k]; }).join(', ') : 'Riga completa: si può salvare.') + '</div>' +
+    '<div class="row" style="margin-top:12px"><button class="btn pri" id="e_salva">Salva riga</button>' +
+    (!ed.riga ? '<button class="btn" id="e_bozza">Salva bozza</button>' : '') +
+    '<button class="btn warn" id="e_svuota">Svuota riga</button>' +
+    (ed.bozzaId ? '<button class="btn err" id="e_delb">Elimina bozza</button>' : '') +
+    '<button class="btn" id="e_chiudi">Chiudi</button></div></section>';
+  $('edbox').innerHTML = h;
+  document.querySelectorAll('#edbox [data-k]').forEach(function(el){
+    var ev = el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(ev, function(){ d[el.dataset.k] = el.value; if (el.dataset.k === 'mat' || el.tagName === 'SELECT') disegnaEditor(); else aggiornaMancanti(); });
+  });
+  $('e_giorno').onchange = function(){ ed.giorno = this.value; };
+  $('e_sede').onchange = function(){ ed.sede = this.value; };
+  $('e_no').onchange = function(){ if (this.checked) { d.n = 'NO'; d.mat = ''; } else d.n = ''; disegnaEditor(); };
+  $('e_salva').onclick = salvaRiga;
+  if ($('e_bozza')) $('e_bozza').onclick = salvaBozza;
+  $('e_svuota').onclick = function(){ if (!confirm('Svuotare tutti i campi?')) return; ed.dati = {}; ed.provato = false; ed.errore = null; disegnaEditor(); };
+  if ($('e_delb')) $('e_delb').onclick = function(){ if (!confirm('Eliminare la bozza?')) return; api('eliminaBozza', { id: ed.bozzaId }).then(function(){ S.ed = null; return ricarica(); }).catch(function(e){ toast(e.message); }); };
+  $('e_chiudi').onclick = function(){ S.ed = null; vCompila(); };
+}
+
+function aggiornaMancanti(){
+  // aggiorna solo il messaggio senza ridisegnare (mantiene il cursore)
+  var m = mancanti(S.ed.dati);
+  var box = $('e_manc');
+  if (box) { box.style.color = m.length ? 'var(--err)' : 'var(--ok)'; box.textContent = m.length ? 'Da completare: ' + m.map(function(k){ return NOMI[k]; }).join(', ') : 'Riga completa: si può salvare.'; }
+}
+
+function salvaRiga(){
+  var ed = S.ed;
+  ed.provato = true;
+  var m = mancanti(ed.dati);
+  if (m.length) { ed.errore = 'Mancano: ' + m.map(function(k){ return NOMI[k]; }).join(', ') + '.'; return disegnaEditor(); }
+  api('salvaRiga', { giorno: ed.giorno, sede: ed.sede, riga: ed.riga || 0, bozzaId: ed.bozzaId || '', dati: ed.dati }).then(function(r){
+    var t = 'Riga salvata' + (r.codici ? ' · codici ' + r.codici : '');
+    if (r.avvisi && r.avvisi.length) t += ' · ATTENZIONE (admin): ' + r.avvisi.join(' ');
+    toast(t);
+    var nuovo = !ed.riga;
+    var g = ed.giorno, s = ed.sede;
+    S.ed = nuovo ? { giorno: g, sede: s, dati: {} } : null;   // dopo il salvataggio si apre una nuova uscita vuota
+    return ricarica();
+  }).catch(function(e){ ed.errore = e.message; disegnaEditor(); });
+}
+
+function salvaBozza(){
+  var ed = S.ed;
+  api('salvaBozza', { bozza: { id: ed.bozzaId || '', giorno: ed.giorno, sede: ed.sede, dati: ed.dati } }).then(function(r){
+    toast('Bozza salvata (non è ancora nel programma)');
+    S.ed = null; return ricarica();
+  }).catch(function(e){ ed.errore = e.message; disegnaEditor(); });
+}
+
+// ---------------- dashboard ----------------
+function vDash(){
+  $('main').innerHTML = intestazione('Dashboard') + '<div class="empty">Caricamento…</div>';
+  api('dashboard').then(function(d){
+    var h = intestazione('Dashboard');
+    h += '<div class="grid kpis" style="margin-bottom:16px">' +
+      kpi('Uscite salvate', d.salvate) + kpi('Da completare', d.daCompletare) + kpi('Campioni', d.campioni) + kpi('Bozze aperte', d.bozze) + '</div>';
+    h += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start">';
+    h += '<section class="card"><h2>Limiti settimanali</h2><ul class="clean">' + d.limiti.map(function(l){
+      var pc = l.max ? Math.min(100, Math.round(l.usati / l.max * 100)) : 0;
+      var cls = l.usati > l.max ? 'over' : (pc >= 85 ? 'near' : '');
+      return '<li><div class="row" style="justify-content:space-between"><b style="font-size:14px">' + esc(l.nome) + '</b><span class="mono">' + l.usati + ' / ' + l.max + '</span></div><div class="bar ' + cls + '"><i style="width:' + pc + '%"></i></div><div style="font-size:12px;color:var(--dim)">' + esc(l.regola) + '</div></li>';
+    }).join('') + '</ul></section>';
+    var mats = {};
+    d.giorni.forEach(function(g){ Object.keys(g.mat).forEach(function(k){ mats[k] = 1; }); });
+    var lm = Object.keys(mats).sort();
+    h += '<section class="card"><h2>Campioni per giorno e matrice</h2><div class="tw"><table class="rows"><thead><tr><th>Matrice</th>' + d.giorni.map(function(g){ return '<th>' + g.giorno + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      (lm.length ? lm.map(function(k){ var c = S.liste.matrici[k] || {}; return '<tr><td>' + esc(k) + '</td>' + d.giorni.map(function(g){ var v = g.mat[k] || 0; var over = c.maxGiorno && v > c.maxGiorno; return '<td class="mono" style="' + (over ? 'color:var(--err);font-weight:700' : '') + '">' + (v || '') + '</td>'; }).join('') + '</tr>'; }).join('') : '<tr><td colspan="7" class="empty">Nessun campione inserito.</td></tr>') +
+      '<tr><td><b>Uscite</b></td>' + d.giorni.map(function(g){ return '<td class="mono"><b>' + (g.righe || '') + '</b></td>'; }).join('') + '</tr></tbody></table></div></section>';
+    h += '<section class="card"><h2>Per UOC</h2><div class="tw"><table class="rows"><thead><tr><th>UOC</th><th>Uscite</th><th>Campioni</th></tr></thead><tbody>' +
+      d.perUoc.map(function(u){ return '<tr><td>' + esc(u.uoc) + '</td><td class="mono">' + u.righe + '</td><td class="mono">' + u.campioni + '</td></tr>'; }).join('') + '</tbody></table></div></section>';
+    h += '</div>';
+    $('main').innerHTML = h;
+  }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
+}
+function kpi(l, v){ return '<div class="card kpi"><div class="l">' + esc(l) + '</div><div class="v">' + esc(v) + '</div></div>'; }
+
+// ---------------- approvazione ----------------
+function vApprova(){
+  $('main').innerHTML = intestazione('Approvazione') + '<div class="empty">Controllo in corso…</div>';
+  api('verificaApprovazione').then(function(c){
+    var rev = c.tipo === 'revisione';
+    var h = intestazione(rev ? 'Approvazione Rev.' + c.rev : 'Approvazione');
+    if (rev && !c.modifiche.length) {
+      h += '<div class="msg ok">Programma approvato' + (c.programma.revApprovata ? ' (Rev.' + c.programma.revApprovata + ')' : '') + '. Non ci sono modifiche da approvare.</div>';
+      $('main').innerHTML = h; return;
+    }
+    h += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start"><div class="grid">';
+    h += '<section class="card"><h2>Controlli</h2><ul class="clean">' +
+      chk(c.problemi.length === 0, 'Tutte le righe salvate e complete (' + c.salvate + ' di ' + c.righe + ')') +
+      chk(c.bozze === 0, c.bozze ? c.bozze + ' bozze non salvate (non entrano nel programma)' : 'Nessuna bozza aperta', true) + '</ul>' +
+      (c.problemi.length ? '<h2 style="margin-top:14px">Da sistemare</h2><ul class="clean" style="font-size:14px">' + c.problemi.map(function(p){ return '<li>• ' + esc(p) + '</li>'; }).join('') + '</ul>' : '') + '</section>';
+    if (rev) {
+      h += '<section class="card"><h2>Modifiche della Rev.' + c.rev + '</h2><ul class="clean" style="font-size:14px">' + c.modifiche.map(function(m){
+        return '<li><span class="chip ' + (m.tipo === 'AGGIUNTA' ? 'add' : (m.tipo === 'ANNULLATA' ? 'del' : 'mod')) + '">' + m.tipo + '</span> <b>' + esc(GIORNI[m.giorno] || m.giorno) + ' · ' + esc(m.sede) + '</b> · ' + esc(m.loc) +
+          (m.differenze.length ? '<div style="margin:4px 0 0 8px;font-size:13px">' + m.differenze.map(function(x){ return esc(x.etichetta) + ': <s>' + esc(x.prima || '—') + '</s> → <b>' + esc(x.dopo || '—') + '</b>'; }).join('<br>') + '</div>' : '') + '</li>';
+      }).join('') + '</ul></section>';
+    }
+    h += '<div class="row"><button class="btn pri" id="bapp"' + (c.approvabile ? '' : ' disabled') + '>' + (rev ? 'Approva Rev.' + c.rev : 'Approva programma') + '</button></div></div>';
+    h += '<aside class="card"><h2>Cosa succede quando approvi</h2><ol style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px;font-size:14px">' +
+      (rev ? '<li>Nel foglio: titolo "REV. ' + c.rev + '", celle modificate in giallo, righe aggiunte in verde, annullate in rosso barrato</li><li>Nuovo PDF e riepilogo con le modifiche; sostituiscono i precedenti</li><li>L\'archivio viene aggiornato con questa versione</li><li>Email con il PDF a equipaggio, guida e affidatario delle righe modificate e ai dirigenti</li>'
+        : '<li>Nel foglio: J2 = SI e banner "APPROVATO"</li><li>Si generano il PDF della settimana e il PDF di riepilogo (cartella Drive)</li><li>Il programma va in archivio</li>') +
+      '<li>Scarichi il PDF e lo invii su Urbi</li></ol></aside></div>';
+    $('main').innerHTML = h;
+    if ($('bapp')) $('bapp').onclick = function(){
+      if (!confirm(rev ? 'Approvare la Rev.' + c.rev + ' e avvisare le persone coinvolte?' : 'Approvare il programma n. ' + c.programma.numero + '?')) return;
+      api('approva').then(function(r){
+        S.msg = { t: 'ok', x: (r.rev ? 'Rev.' + r.rev + ' approvata' : 'Programma approvato') + '. PDF disponibili in Archivio.' + (r.emailInviate ? ' Email inviate: ' + r.emailInviate + '.' : '') };
+        return api('settimana').then(function(d){ S.sett = d; S.vista = 'archivio'; disegna(); });
+      }).catch(function(e){ toast(e.message); });
+    };
+  }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
+}
+function chk(ok, t, soloAvviso){ return '<li class="row" style="gap:8px;flex-wrap:nowrap"><span style="font-weight:700;color:' + (ok ? 'var(--ok)' : (soloAvviso ? 'var(--warn)' : 'var(--err)')) + '">' + (ok ? '✓' : (soloAvviso ? '!' : '✗')) + '</span><span>' + esc(t) + '</span></li>'; }
+
+// ---------------- archivio ----------------
+function vArchivio(){
+  $('main').innerHTML = intestazione('Archivio') + '<div class="empty">Caricamento…</div>';
+  api('archivio').then(function(a){
+    var h = intestazione('Archivio');
+    h += '<section class="card"><div class="tw"><table class="rows"><thead><tr><th>N.</th><th>Settimana</th><th>Stato</th><th>Approvato da</th><th>Data</th><th></th></tr></thead><tbody>' +
+      (a.length ? a.map(function(x){
+        return '<tr><td class="mono" data-l="N.">' + esc(x.numero) + '</td><td data-l="Settimana">' + esc(x.settimana) + '</td><td data-l="Stato">' + esc(x.stato) + '</td><td data-l="Approvato da">' + esc(x.approvatoDa) + '</td><td data-l="Data">' + esc(x.data) + '</td>' +
+          '<td class="act">' + (x.pdf ? '<button class="btn small" data-pdf="' + esc(x.pdf) + '">PDF programma</button> ' : '') + (x.riepilogo ? '<button class="btn small" data-pdf="' + esc(x.riepilogo) + '">PDF riepilogo</button>' : '') + '</td></tr>';
+      }).join('') : '<tr><td colspan="6" class="empty">Nessun programma approvato.</td></tr>') + '</tbody></table></div></section>' +
+      '<p style="font-size:13px;color:var(--dim)">La modifica dei programmi già approvati si fa dalla sezione "In compilazione" finché la settimana è in corso; si conserva solo l\'ultima revisione.</p>';
+    $('main').innerHTML = h;
+    document.querySelectorAll('[data-pdf]').forEach(function(b){ b.onclick = function(){ scaricaPdf(b.dataset.pdf); }; });
+  }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
+}
+
+function scaricaPdf(id){
+  api('pdf', { idFile: id }).then(function(f){
+    var bin = atob(f.base64), arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    var url = URL.createObjectURL(new Blob([arr], { type: 'application/pdf' }));
+    var a = document.createElement('a'); a.href = url; a.download = f.nome; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
+  }).catch(function(e){ toast(e.message); });
+}
+
+// ---------------- amministrazione ----------------
+function vAdmin(){
+  $('main').innerHTML = intestazione('Amministrazione') + '<div class="empty">Caricamento…</div>';
+  api('utenti').then(function(u){
+    var p = S.sett.programma;
+    var h = intestazione('Amministrazione');
+    h += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr));align-items:start">';
+    h += '<section class="card" style="grid-column:1/-1"><h2>Utenti</h2><p style="font-size:13px;color:var(--dim);margin-top:0">Gli utenti si aggiungono nel foglio "Personale guida" (colonne NOME_UTENTE, RUOLO, EMAIL, SEDE, ATTIVO). Le password non sono visibili a nessuno: se un utente la dimentica gli assegni una <b>password temporanea</b>, che al primo accesso dovrà cambiare.</p><div class="tw"><table class="rows"><thead><tr><th>Nome</th><th>Utente</th><th>Ruolo</th><th>Sede</th><th>Password</th><th>Ultimo accesso</th><th></th></tr></thead><tbody>' +
+      u.map(function(x){
+        var pw = !x.haPassword ? '<span class="chip warn">manca</span>' : (x.temporanea ? '<span class="chip warn">temporanea · da cambiare</span>' : '<span class="chip ok">scelta dall\'utente</span>');
+        if (x.bloccato) pw += ' <span class="chip err">bloccato 15 min</span>';
+        return '<tr><td data-l="Nome">' + esc(x.nome) + (x.attivo ? '' : ' <span class="chip err">non attivo</span>') + '</td><td class="mono" data-l="Utente">' + esc(x.username) + '</td><td data-l="Ruolo">' + esc(x.ruolo) + '</td><td data-l="Sede">' + esc(x.sede) + '</td><td data-l="Password">' + pw + '</td>' +
+          '<td data-l="Ultimo accesso" class="mono" style="font-size:12.5px">' + (x.ultimoAccesso ? esc(x.ultimoAccesso) : '<span style="color:var(--dim)">mai</span>') + '</td>' +
+          '<td class="act">' + (x.bloccato ? '<button class="btn small" data-sbl="' + esc(x.username) + '">Sblocca</button> ' : '') + '<button class="btn small" data-pwd="' + esc(x.username) + '">Password temporanea</button></td></tr>';
+      }).join('') +
+      '</tbody></table></div></section>';
+    h += '<div class="grid"><section class="card"><h2>Allinea codici dal programma in uso</h2><p style="font-size:13px;margin-top:0">Copia il foglio CODICI del programma attuale in questo. Da fare <b>il giorno del passaggio</b>, quando sul vecchio programma non si inseriscono più uscite.</p><div id="codbox"></div><div class="row"><button class="btn" id="bcodA">Anteprima</button><button class="btn pri hidden" id="bcodC">Conferma allineamento</button></div></section>';
+    h += '<section class="card"><h2>Prepara nuova settimana</h2><p style="font-size:13px;margin-top:0">Svuota il foglio, riporta i blocchi alla dimensione iniziale, passa al n. ' + (Number(p.numero) + 1) + ' con le date della settimana dopo e J2 = NO. Possibile solo con il programma approvato e archiviato.</p><button class="btn warn" id="bnuovaS"' + (p.approvato && !p.revInCorso ? '' : ' disabled') + '>Prepara programma n. ' + (Number(p.numero) + 1) + '</button></section></div>';
+    h += '</div>';
+    $('main').innerHTML = h;
+    document.querySelectorAll('[data-pwd]').forEach(function(b){ b.onclick = function(){
+      if (!confirm('Generare una password temporanea per ' + b.dataset.pwd + '? Quella attuale smetterà di funzionare.')) return;
+      api('impostaPassword', { username: b.dataset.pwd }).then(function(r){ vAdmin(); mostraTemporanea(r.username, r.temporanea); }).catch(function(e){ toast(e.message); });
+    }; });
+    document.querySelectorAll('[data-sbl]').forEach(function(b){ b.onclick = function(){
+      api('sbloccaUtente', { username: b.dataset.sbl }).then(function(){ toast('Utente sbloccato'); vAdmin(); }).catch(function(e){ toast(e.message); });
+    }; });
+    $('bcodA').onclick = function(){ codici(false); };
+    $('bcodC').onclick = function(){ if (confirm('Sostituire il foglio CODICI con quello del programma in uso?')) codici(true); };
+    $('bnuovaS').onclick = function(){
+      if (!confirm('Preparare il programma n. ' + (Number(p.numero) + 1) + '? Il foglio verrà svuotato (il n. ' + p.numero + ' resta in archivio).')) return;
+      api('preparaNuovaSettimana').then(function(r){ toast('Pronto il programma n. ' + r.numero); return ricarica(); }).catch(function(e){ toast(e.message); });
+    };
+  }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
+}
+
+// La password temporanea si vede solo qui, una volta
+function mostraTemporanea(u, pw){
+  var d = document.createElement('div');
+  d.className = 'spin';
+  d.innerHTML = '<div class="card" style="max-width:420px;margin:16px;color:var(--ink);font-weight:400"><h2>Password temporanea per ' + esc(u) + '</h2>' +
+    '<div class="mono" style="font-size:26px;letter-spacing:.08em;padding:12px;background:#efe9dc;border-radius:6px;text-align:center;user-select:all">' + esc(pw) + '</div>' +
+    '<p style="font-size:13.5px">Comunicala all\'utente. Al primo accesso dovrà sceglierne una sua. <b>Non verrà più mostrata</b>: se la perdi, generane un\'altra.</p>' +
+    '<div class="row"><button class="btn" id="tcopia">Copia</button><button class="btn pri" id="tchiudi">Ho annotato, chiudi</button></div></div>';
+  document.body.appendChild(d);
+  $('tcopia').onclick = function(){ try { navigator.clipboard.writeText(pw); toast('Copiata'); } catch (e) {} };
+  $('tchiudi').onclick = function(){ d.remove(); };
+}
+
+function codici(conferma){
+  api('importaCodici', { conferma: conferma }).then(function(r){
+    $('codbox').innerHTML = (r.anteprima ? '' : '<div class="msg ok">Codici allineati.</div>') + '<div class="tw"><table class="rows" style="margin-bottom:10px"><thead><tr><th>Matrice</th><th>Programma in uso</th><th>Questo programma</th></tr></thead><tbody>' +
+      r.matrici.map(function(m){ var diverso = m.primoVecchio !== m.primoNuovo || m.disponibiliVecchio !== m.disponibiliNuovo; return '<tr style="' + (diverso && r.anteprima ? 'background:var(--mod)' : '') + '"><td>' + esc(m.matrice) + '</td><td class="mono">' + m.disponibiliVecchio + ' liberi · dal ' + esc(m.primoVecchio || '—') + '</td><td class="mono">' + m.disponibiliNuovo + ' liberi · dal ' + esc(m.primoNuovo || '—') + '</td></tr>'; }).join('') + '</tbody></table></div>';
+    $('bcodC').classList.toggle('hidden', !r.anteprima);
+  }).catch(function(e){ toast(e.message); });
+}
+
+// ---------------- account ----------------
+function vAccount(){
+  document.querySelectorAll('nav.menu button').forEach(function(b){ b.classList.remove('on'); });
+  $('main').innerHTML = '<div class="eyebrow">Account</div><h1>' + esc(S.utente.nome || S.utente.username) + '</h1>' +
+    '<form class="card grid" id="fpw" style="max-width:420px"><h2>Cambia password</h2><label class="f">Password attuale<input type="password" name="a" autocomplete="current-password" required></label>' +
+    '<label class="f">Nuova password (almeno 8 caratteri)<input type="password" name="n" autocomplete="new-password" minlength="8" required></label>' +
+    '<label class="f">Ripeti nuova password<input type="password" name="r" autocomplete="new-password" minlength="8" required></label><button class="btn pri">Salva</button></form>';
+  $('fpw').onsubmit = function(e){
+    e.preventDefault(); var f = e.target;
+    if (f.n.value !== f.r.value) return toast('Le due password non coincidono');
+    api('cambiaPassword', { vecchia: f.a.value, nuova: f.n.value }).then(function(){ toast('Password cambiata'); f.reset(); }).catch(function(er){ toast(er.message); });
+  };
+}
+
+if ('serviceWorker' in navigator) { window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); }); }
+avvio();
+</script>
+</body>
+</html>
