@@ -82,6 +82,7 @@ td.act{white-space:nowrap;text-align:right}
 .editor{border:2px solid var(--accent);background:#fffaf0}
 .editor .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 12px}
 .editor .wide{grid-column:span 2}
+.editor .riga{grid-column:1/-1}
 .nobox{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;margin-top:4px;color:var(--ink)}
 label.f .nobox input{width:20px;height:20px;min-height:0;padding:0;margin:0}
 .chips{position:relative;display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid #cfc6b4;border-radius:6px;padding:6px;background:#fff;min-height:42px}
@@ -489,6 +490,7 @@ function mancanti(d){
   if (d.auto && d.auto.toUpperCase() !== 'NO AUTO' && !d.art) m.push('art');
   return m;
 }
+var MAX_NOTE = 40;   // note brevi: nel programma stampato devono restare leggibili
 var NOMI = { uoc: 'UOC', auto: 'Auto', loc: 'Località', n: 'Numero campioni (numero o NO)', mat: 'Matrice', cdc: 'Centro di costo', aff: 'Affidatario', art: 'Art. 5' };
 
 function disegnaEditor(){
@@ -510,7 +512,7 @@ function disegnaEditor(){
     f('uoc', 'UOC *', '<select data-k="uoc">' + opz(L.uoc, d.uoc) + '</select>') +
     f('auto', 'Auto *', '<select data-k="auto">' + opz(L.auto.map(function(a){ return { v: a.nome, t: a.nome + (a.sede ? ' (' + a.sede + ')' : '') }; }), d.auto) + '</select>') +
     f('loc', 'Località da raggiungere (tragitto) *', chipsHtml('e_tappe', d._tappe, d._tappe.length ? 'Aggiungi un\'altra tappa…' : 'Scrivi un comune: Molise per primi…', true) +
-      '<input id="e_locnota" placeholder="Dettaglio (facoltativo): es. PFAS-ANPA, depuratore…" value="' + esc(d._locNote) + '"><span class="hint">Le tappe vanno nell\'ordine del tragitto. Fuori elenco: «Aggiungi come testo libero».</span>', 'wide') +
+      '<span class="hint">Le tappe vanno nell\'ordine del tragitto. Fuori elenco: «Aggiungi come testo libero».</span>', 'wide') +
     f('guida', 'Personale guida', '<select data-k="guida">' + opz(L.guide, d.guida) + '</select>') +
     f('aff', 'Personale affidatario', '<input data-k="aff" list="dl_pers" value="' + esc(d.aff) + '">') +
     f('art', 'Art. 5 c.2', '<select data-k="art">' + opz(L.articoli, d.art) + '</select>') +
@@ -521,6 +523,7 @@ function disegnaEditor(){
     f('r', 'Rientro', '<input data-k="r" type="time" value="' + esc(d.r) + '">') +
     f('mat', 'Matrice', '<select data-k="mat"' + (nNo ? ' disabled' : '') + '>' + opz(Object.keys(L.matrici), d.mat) + '</select>') +
     f('n', 'Numero campioni *', '<input data-k="n" type="number" min="1" step="1" inputmode="numeric" value="' + (nNo ? '' : esc(d.n)) + '"' + (nNo ? ' disabled' : '') + '><span class="nobox"><input type="checkbox" id="e_no"' + (nNo ? ' checked' : '') + '> Nessun campione (NO)</span>') +
+    f('locnota', '<span>Note <span class="hint" id="e_locnum">(' + (d._locNote || '').length + '/' + MAX_NOTE + ' caratteri)</span></span>', '<input id="e_locnota" maxlength="' + MAX_NOTE + '" placeholder="Facoltative, brevi: es. PFAS-ANPA, depuratore" value="' + esc(d._locNote) + '">', 'riga') +
     '</div>' +
     '<datalist id="dl_pers">' + L.personale.map(function(x){ return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
     (mat ? '<div style="font-size:12.5px;color:var(--dim);margin-top:8px">' + esc(mat.nome) + ': giorni ' + esc(mat.giorni.join(', ')) + (mat.maxGiorno ? ' · max ' + mat.maxGiorno + (mat.perImpianti ? ' impianti' : '') + '/giorno' : '') + (mat.maxSettimana ? ' · max ' + mat.maxSettimana + '/settimana' + (mat.gruppo ? ' (' + esc(mat.gruppo) + ')' : '') : '') + (mat.oraLimite ? ' · ' + esc(mat.oraLimite) : '') + '</div>' : '') +
@@ -538,7 +541,7 @@ function disegnaEditor(){
   });
   collegaChips('e_tappe', d._tappe, function(){ return COMUNI || []; }, true);
   collegaChips('e_eq', d._eq, function(){ return S.liste.personale; }, false);
-  $('e_locnota').oninput = function(){ d._locNote = this.value.trim(); componi(d); aggiornaMancanti(); };
+  $('e_locnota').oninput = function(){ d._locNote = this.value.trim(); $('e_locnum').textContent = '(' + this.value.length + '/' + MAX_NOTE + ' caratteri)'; componi(d); aggiornaMancanti(); };
   $('e_eqnota').oninput = function(){ d._eqNote = this.value.trim(); componi(d); };
   $('e_giorno').onchange = function(){ ed.giorno = this.value; };
   $('e_sede').onchange = function(){ ed.sede = this.value; };
