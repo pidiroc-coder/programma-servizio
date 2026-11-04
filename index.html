@@ -135,6 +135,13 @@ function toast(t){ var d = document.createElement('div'); d.className = 'toast';
 var nSpin = 0;
 function spin(on){ nSpin += on ? 1 : -1; var el = $('spin'); if (nSpin > 0 && !el) { el = document.createElement('div'); el.id = 'spin'; el.className = 'spin'; el.textContent = 'Attendere…'; document.body.appendChild(el); } if (nSpin <= 0 && el) { nSpin = 0; el.remove(); } }
 
+// lettura "subito e poi aggiornata": mostra l'ultima risposta nota, poi quella nuova
+var MEMO = {};
+function leggi(azione, dati, disegnaFn){
+  var k = azione + JSON.stringify(dati || {});
+  if (MEMO[k]) { try { disegnaFn(MEMO[k], true); } catch (e) {} }
+  return api(azione, dati, true).then(function(r){ var cambiato = JSON.stringify(r) !== JSON.stringify(MEMO[k]); MEMO[k] = r; if (cambiato) disegnaFn(r, false); return r; });
+}
 function api(azione, dati, silenzioso){
   if (!API) return Promise.reject(new Error('Manca API_URL in config.js'));
   var body = Object.assign({}, dati || {}, { azione: azione, token: S.token });
@@ -211,7 +218,7 @@ function vistaCambioObbligatorio(temporanea, err){
 
 function esci(silenzioso){
   if (!silenzioso && S.token) api('logout', {}, true).catch(function(){});
-  ls('pds_token', null); ls('pds_utente', null);
+  ls('pds_token', null); ls('pds_utente', null); MEMO = {};
   S.token = null; S.utente = null; S.ed = null;
   vistaLogin();
 }
@@ -240,6 +247,16 @@ function F(){ return S.arch || S.sett; }
 function ricaricaF(){
   if (!S.arch) return ricarica();
   return api('archivioApri', { numero: S.arch.programma.numero }).then(function(d){ S.arch = d; disegna(); });
+}
+// scrittura: un solo giro col server, che risponde già con la settimana (o il programma d'archivio) aggiornata
+function scrivi(azione, dati, silenzioso){
+  dati = Object.assign({}, dati || {});
+  if (S.arch) { dati.rit = 'arch'; dati.numero = S.arch.programma.numero; } else dati.rit = 'settimana';
+  return api(azione, dati, silenzioso).then(function(r){
+    if (r && r.settimana) S.sett = r.settimana;
+    if (r && r.arch && S.arch) S.arch = r.arch;
+    return r;
+  });
 }
 function apriArchivio(n){
   api('archivioApri', { numero: n }).then(function(d){ S.arch = d; S.ed = null; S.giorno = 'TUTTI'; S.vista = 'archvista'; S.msg = null; disegna(); window.scrollTo(0, 0); }).catch(function(e){ toast(e.message); });
@@ -381,7 +398,9 @@ function sblocca(n){
   var p = F().programma;
   var testo = p.approvato ? 'Il programma è approvato: la modifica creerà la Rev.' + (p.revApprovata + 1) + ' da far approvare al dirigente. Sbloccare la riga?' : 'Sbloccare la riga per modificarla? Finché non la salvi di nuovo il programma non si può approvare.';
   if (!confirm(testo)) return;
-  (S.arch ? api('archivioSblocca', { numero: p.numero, riga: n }) : api('sbloccaRiga', { riga: n })).then(function(){ return ricaricaF(); }).then(function(){ modificaRiga(n); }).catch(function(e){ toast(e.message); });
+  modificaRiga(n);   // la scheda si apre subito; lo sblocco viaggia in sottofondo
+  S.sblocco = scrivi(S.arch ? 'archivioSblocca' : 'sbloccaRiga', { riga: n }, true)
+    .catch(function(e){ toast(e.message); S.ed = null; vCompila(); throw e; });
 }
 
 function modificaRiga(n){
@@ -396,7 +415,7 @@ function eliminaRiga(n){
   var annulla = p.approvato && !(t.r.modifica === 'AGGIUNTA' && t.r.rev > p.revApprovata);
   var testo = annulla ? 'Annullare l\'uscita "' + t.r.loc + '"? Resterà visibile barrata nella revisione.' : 'Svuotare la riga "' + t.r.loc + '"?' + (t.r.cod ? ' I codici ' + t.r.cod + ' non verranno riutilizzati.' : '');
   if (!confirm(testo)) return;
-  (S.arch ? api('archivioAnnulla', { numero: p.numero, riga: n }) : api('svuotaRiga', { riga: n })).then(function(){ toast(annulla ? 'Uscita annullata' : 'Riga svuotata'); return ricaricaF(); }).catch(function(e){ toast(e.message); });
+  scrivi(S.arch ? 'archivioAnnulla' : 'svuotaRiga', { riga: n }).then(function(){ toast(annulla ? 'Uscita annullata' : 'Riga svuotata'); vCompila(); }).catch(function(e){ toast(e.message); });
 }
 
 // ---------------- editor uscita ----------------
@@ -556,7 +575,7 @@ function disegnaEditor(){
   $('e_salva').onclick = salvaRiga;
   if ($('e_bozza')) $('e_bozza').onclick = salvaBozza;
   $('e_svuota').onclick = function(){ if (!confirm('Svuotare tutti i campi?')) return; ed.dati = {}; preparaChips(ed.dati); ed.provato = false; ed.errore = null; disegnaEditor(); };
-  if ($('e_delb')) $('e_delb').onclick = function(){ if (!confirm('Eliminare la bozza?')) return; api('eliminaBozza', { id: ed.bozzaId }).then(function(){ S.ed = null; return ricaricaF(); }).catch(function(e){ toast(e.message); }); };
+  if ($('e_delb')) $('e_delb').onclick = function(){ if (!confirm('Eliminare la bozza?')) return; scrivi('eliminaBozza', { id: ed.bozzaId }).then(function(){ S.ed = null; vCompila(); }).catch(function(e){ toast(e.message); }); };
   $('e_chiudi').onclick = function(){ S.ed = null; vCompila(); };
 }
 
@@ -573,8 +592,8 @@ function salvaRiga(){
   var m = mancanti(ed.dati);
   if (m.length) { ed.errore = 'Mancano: ' + m.map(function(k){ return NOMI[k]; }).join(', ') + '.'; return disegnaEditor(); }
   var payload = { giorno: ed.giorno, sede: ed.sede, riga: ed.riga || 0, bozzaId: ed.bozzaId || '', dati: ed.dati };
-  if (S.arch) payload.numero = S.arch.programma.numero;
-  api(S.arch ? 'archivioSalva' : 'salvaRiga', payload).then(function(r){
+  var attesa = S.sblocco || Promise.resolve();
+  attesa.then(function(){ S.sblocco = null; return scrivi(S.arch ? 'archivioSalva' : 'salvaRiga', payload); }).then(function(r){
     var t = 'Riga salvata' + (r.codici ? ' · codici ' + r.codici : '');
     if (r.avvisi && r.avvisi.length) t += ' · ATTENZIONE (admin): ' + r.avvisi.join(' ');
     toast(t);
@@ -582,22 +601,22 @@ function salvaRiga(){
     var g = ed.giorno, s = ed.sede;
     S.ed = nuovo ? { giorno: g, sede: s, dati: {} } : null;
     if (S.ed) preparaChips(S.ed.dati);   // dopo il salvataggio si apre una nuova uscita vuota
-    return ricaricaF();
+    vCompila();
   }).catch(function(e){ ed.errore = e.message; disegnaEditor(); });
 }
 
 function salvaBozza(){
   var ed = S.ed;
-  api('salvaBozza', { bozza: { id: ed.bozzaId || '', giorno: ed.giorno, sede: ed.sede, dati: ed.dati } }).then(function(r){
+  scrivi('salvaBozza', { bozza: { id: ed.bozzaId || '', giorno: ed.giorno, sede: ed.sede, dati: ed.dati } }).then(function(r){
     toast('Bozza salvata (non è ancora nel programma)');
-    S.ed = null; return ricarica();
+    S.ed = null; vCompila();
   }).catch(function(e){ ed.errore = e.message; disegnaEditor(); });
 }
 
 // ---------------- dashboard ----------------
 function vDash(){
   $('main').innerHTML = intestazione('Dashboard') + '<div class="empty">Caricamento…</div>';
-  api('dashboard').then(function(d){
+  leggi('dashboard', {}, function(d){ if (S.vista !== 'dash') return;
     var h = intestazione('Dashboard');
     h += '<div class="grid kpis" style="margin-bottom:16px">' +
       kpi('Uscite salvate', d.salvate) + kpi('Da completare', d.daCompletare) + kpi('Campioni', d.campioni) + kpi('Bozze aperte', d.bozze) + '</div>';
@@ -680,7 +699,7 @@ function chk(ok, t, soloAvviso){ return '<li class="row" style="gap:8px;flex-wra
 function vArchivio(){
   var msg = S.msg ? '<div class="msg ' + S.msg.t + '">' + esc(S.msg.x) + '</div>' : '';
   $('main').innerHTML = '<div class="eyebrow">Programmi approvati</div><h1>Archivio</h1>' + msg + '<div class="empty">Caricamento…</div>';
-  api('archivio').then(function(a){
+  leggi('archivio', {}, function(a){ if (S.vista !== 'archivio') return;
     var h = '<div class="eyebrow">Programmi approvati</div><h1>Archivio</h1>' + msg;
     h += '<section class="card"><div class="tw"><table class="rows"><thead><tr><th>N.</th><th>Settimana</th><th>Stato</th><th>Approvato da</th><th>Data</th><th></th></tr></thead><tbody>' +
       (a.length ? a.map(function(x){
@@ -724,7 +743,7 @@ function scaricaPdf(id){
 // ---------------- amministrazione ----------------
 function vAdmin(){
   $('main').innerHTML = intestazione('Amministrazione') + '<div class="empty">Caricamento…</div>';
-  api('utenti').then(function(u){
+  leggi('utenti', {}, function(u){ if (S.vista !== 'admin') return;
     var p = S.sett.programma;
     var h = intestazione('Amministrazione');
     h += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr));align-items:start">';
@@ -840,6 +859,15 @@ function tgBox(){
     };
   }).catch(function(e){ box.innerHTML = '<h2>Notifiche Telegram</h2><div class="msg err">' + esc(e.message) + '</div>'; });
 }
+
+setInterval(function(){
+  if (!S.token || !S.sett || document.hidden || S.ed || S.arch || S.vista !== 'compila' || nSpin > 0) return;
+  api('settimana', {}, true).then(function(d){
+    if (S.ed || S.vista !== 'compila' || S.arch) return;
+    if (JSON.stringify(d.giorni) + JSON.stringify(d.bozze) === JSON.stringify(S.sett.giorni) + JSON.stringify(S.sett.bozze)) { S.sett = d; return; }
+    var y = window.scrollY; S.sett = d; vCompila(); window.scrollTo(0, y);
+  }).catch(function(){});
+}, 45000);
 
 if ('serviceWorker' in navigator) { window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); }); }
 avvio();
