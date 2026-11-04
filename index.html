@@ -75,6 +75,7 @@ table.rows th{background:#efe9dc;text-align:left;font-size:11.5px;letter-spacing
 table.rows td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 tr.r-mod td{background:#fffbe0}tr.r-add td{background:#eef9ea}tr.r-del td{background:#fdeceb;text-decoration:line-through;color:#8c1d14}
 tr.r-del td.act{text-decoration:none}
+tr.r-bozza td{background:repeating-linear-gradient(-45deg,#fffaf0,#fffaf0 8px,#fdf3df 8px,#fdf3df 16px);color:#57534e}
 td.act{white-space:nowrap;text-align:right}
 .empty{color:var(--dim);font-size:13px;padding:6px 2px}
 .tw{overflow-x:auto}
@@ -83,6 +84,7 @@ td.act{white-space:nowrap;text-align:right}
 .editor .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 12px}
 .editor .wide{grid-column:span 2}
 .editor .riga{grid-column:1/-1}
+.editor .loc3{grid-column:span 3}
 .nobox{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;margin-top:4px;color:var(--ink)}
 label.f .nobox input{width:20px;height:20px;min-height:0;padding:0;margin:0}
 .chips{position:relative;display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid #cfc6b4;border-radius:6px;padding:6px;background:#fff;min-height:42px}
@@ -107,7 +109,7 @@ ul.clean{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;g
 .spin{position:fixed;inset:0;background:rgba(246,243,236,.55);display:flex;align-items:center;justify-content:center;z-index:40;font-weight:600;color:var(--top)}
 @media (max-width:720px){
   h1{font-size:23px}
-  .editor .wide{grid-column:span 1}
+  .editor .wide,.editor .loc3{grid-column:span 1}
   table.rows thead{display:none}
   table.rows,table.rows tbody,table.rows tr,table.rows td{display:block;width:100%}
   table.rows tr{border-bottom:1px solid var(--line);padding:6px 0}
@@ -295,15 +297,6 @@ function vCompila(){
   }
   h += '<div id="edbox"></div>';
   var miei = p.archivio ? [] : (F().bozze || []);
-  if (miei.length) {
-    h += '<section class="card" style="margin-bottom:16px"><h2>Bozze non salvate (' + miei.length + ')</h2><ul class="clean">' +
-      miei.map(function(b){
-        var vecchia = (Date.now() - dataIt(b.creata)) > 48 * 3600 * 1000;
-        return '<li class="row"><span class="chip ' + (vecchia ? 'err' : 'warn') + '">' + (vecchia ? 'Ferma da oltre 48 ore' : 'Bozza') + '</span><b>' + esc(GIORNI[b.giorno] || b.giorno) + ' · ' + esc(b.sede) + '</b> ' + esc((b.dati && b.dati.loc) || '(senza località)') +
-          ' <span style="font-size:12px;color:var(--dim)">' + esc(b.autore) + ' · ' + esc(b.aggiornata) + '</span>' +
-          (b.mia || isAdmin() ? ' <button class="btn small" data-bozza="' + esc(b.id) + '">Riprendi</button>' : '') + '</li>';
-      }).join('') + '</ul></section>';
-  }
   h += '<div class="days">' + ['TUTTI'].concat(giorni.map(function(g){ return g.key; })).map(function(k){
     return '<button data-g="' + k + '" class="' + (S.giorno === k ? 'on' : '') + '">' + (k === 'TUTTI' ? 'Tutta la settimana' : GIORNI[k]) + '</button>';
   }).join('') + '</div>';
@@ -314,9 +307,11 @@ function vCompila(){
     h += '<section class="day"><div class="dayhead"><h2>' + esc(g.label) + '</h2><span style="font-size:13px;color:var(--dim)">' + n + ' uscite · ' + ok + ' salvate</span></div>';
     g.blocchi.forEach(function(b){
       h += '<div class="sede">' + esc(b.sede) + '</div>';
-      if (!b.righe.length) { h += '<div class="empty">Nessuna uscita.</div>'; return; }
+      var bz = miei.filter(function(x){ return x.giorno === g.key && wa_sede(x.sede) === wa_sede(b.sede); });
+      if (!b.righe.length && !bz.length) { h += '<div class="empty">Nessuna uscita.</div>'; return; }
       h += '<div class="tw"><table class="rows"><thead><tr><th>Stato</th><th>UOC</th><th>Auto</th><th>Località</th><th>Guida</th><th>Affidatario</th><th>Equipaggio / note</th><th>CdC</th><th>Orari</th><th>Matrice</th><th>N.</th><th>Codici</th><th>Salvata da</th><th></th></tr></thead><tbody>';
       b.righe.forEach(function(r){ h += rigaHtml(r, g.key, b.sede); });
+      bz.forEach(function(x){ h += rigaBozza(x); });
       h += '</tbody></table></div>';
     });
     h += '</section>';
@@ -332,6 +327,19 @@ function vCompila(){
   document.querySelectorAll('[data-modifica]').forEach(function(b){ b.onclick = function(){ modificaRiga(Number(b.dataset.modifica)); }; });
   document.querySelectorAll('[data-elimina]').forEach(function(b){ b.onclick = function(){ eliminaRiga(Number(b.dataset.elimina)); }; });
   if (S.ed) disegnaEditor();
+}
+
+function wa_sede(x){ return String(x || '').trim().toUpperCase(); }
+// bozza mostrata nel suo giorno/sede, insieme alle altre righe
+function rigaBozza(b){
+  var d = b.dati || {};
+  var vecchia = (Date.now() - dataIt(b.creata)) > 48 * 3600 * 1000;
+  var c = function(k, l){ return '<td data-l="' + l + '">' + esc(d[k] || '') + '</td>'; };
+  return '<tr class="r-bozza"><td><span class="chip ' + (vecchia ? 'err' : 'warn') + '">' + (vecchia ? 'Bozza ferma da 48 ore' : 'Bozza') + '</span></td>' +
+    c('uoc', 'UOC') + c('auto', 'Auto') + '<td data-l="Località"><b>' + esc(d.loc || '(senza località)') + '</b></td>' + c('guida', 'Guida') + c('aff', 'Affidatario') + c('eq', 'Equipaggio') + c('cdc', 'CdC') +
+    '<td data-l="Orari" class="mono">' + esc(d.p || '') + (d.r ? '–' + esc(d.r) : '') + '</td>' + c('mat', 'Matrice') + '<td data-l="N." class="mono">' + esc(d.n || '') + '</td><td data-l="Codici" class="hint">non assegnati</td>' +
+    '<td data-l="Bozza di" style="font-size:12px;color:var(--dim)">' + esc(b.autore) + '<br>' + esc(b.aggiornata) + '</td>' +
+    '<td class="act">' + (b.mia || isAdmin() ? '<button class="btn small pri" data-bozza="' + esc(b.id) + '">Riprendi</button>' : '') + '</td></tr>';
 }
 
 function rigaHtml(r, giorno, sede){
@@ -512,18 +520,18 @@ function disegnaEditor(){
     f('uoc', 'UOC *', '<select data-k="uoc">' + opz(L.uoc, d.uoc) + '</select>') +
     f('auto', 'Auto *', '<select data-k="auto">' + opz(L.auto.map(function(a){ return { v: a.nome, t: a.nome + (a.sede ? ' (' + a.sede + ')' : '') }; }), d.auto) + '</select>') +
     f('loc', 'Località da raggiungere (tragitto) *', chipsHtml('e_tappe', d._tappe, d._tappe.length ? 'Aggiungi un\'altra tappa…' : 'Scrivi un comune: Molise per primi…', true) +
-      '<span class="hint">Le tappe vanno nell\'ordine del tragitto. Fuori elenco: «Aggiungi come testo libero».</span>', 'wide') +
+      '<span class="hint">Le tappe vanno nell\'ordine del tragitto. Fuori elenco: «Aggiungi come testo libero».</span>', 'loc3') +
     f('guida', 'Personale guida', '<select data-k="guida">' + opz(L.guide, d.guida) + '</select>') +
-    f('aff', 'Personale affidatario', '<input data-k="aff" list="dl_pers" value="' + esc(d.aff) + '">') +
+    f('aff', 'Personale affidatario', '<select data-k="aff">' + opz(L.personale, d.aff) + '</select>') +
     f('art', 'Art. 5 c.2', '<select data-k="art">' + opz(L.articoli, d.art) + '</select>') +
-    f('eq', 'Equipaggio / note', chipsHtml('e_eq', d._eq, 'Aggiungi una persona dall\'elenco…', false) +
-      '<input id="e_eqnota" placeholder="Note ed esterni (facoltative): es. CC FOR IS, ASREM, n. protocollo…" value="' + esc(d._eqNote) + '"><span class="hint">Solo le persone scelte dall\'elenco ricevono le notifiche.</span>', 'wide') +
     f('cdc', 'Centro di costo', '<select data-k="cdc">' + opz(L.cdc.map(function(c){ return { v: c.codice, t: c.codice + (c.descrizione ? ' · ' + c.descrizione : '') }; }), d.cdc) + '</select>', 'wide') +
     f('p', 'Partenza', '<input data-k="p" type="time" value="' + esc(d.p) + '">') +
     f('r', 'Rientro', '<input data-k="r" type="time" value="' + esc(d.r) + '">') +
+    f('eq', 'Equipaggio', chipsHtml('e_eq', d._eq, 'Aggiungi una persona dall\'elenco…', false) +
+      '<span class="hint">Solo le persone scelte dall\'elenco ricevono le notifiche.</span>', 'riga') +
+    f('nota', '<span>Note <span class="hint" id="e_notanum">(' + (d._eqNote || '').length + '/' + MAX_NOTE + ' caratteri)</span></span>', '<input id="e_nota" maxlength="' + MAX_NOTE + '" placeholder="Facoltative, brevi: es. CC FOR IS, ASREM, PFAS-ANPA" value="' + esc(d._eqNote) + '">', 'riga') +
     f('mat', 'Matrice', '<select data-k="mat"' + (nNo ? ' disabled' : '') + '>' + opz(Object.keys(L.matrici), d.mat) + '</select>') +
     f('n', 'Numero campioni *', '<input data-k="n" type="number" min="1" step="1" inputmode="numeric" value="' + (nNo ? '' : esc(d.n)) + '"' + (nNo ? ' disabled' : '') + '><span class="nobox"><input type="checkbox" id="e_no"' + (nNo ? ' checked' : '') + '> Nessun campione (NO)</span>') +
-    f('locnota', '<span>Note <span class="hint" id="e_locnum">(' + (d._locNote || '').length + '/' + MAX_NOTE + ' caratteri)</span></span>', '<input id="e_locnota" maxlength="' + MAX_NOTE + '" placeholder="Facoltative, brevi: es. PFAS-ANPA, depuratore" value="' + esc(d._locNote) + '">', 'riga') +
     '</div>' +
     '<datalist id="dl_pers">' + L.personale.map(function(x){ return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
     (mat ? '<div style="font-size:12.5px;color:var(--dim);margin-top:8px">' + esc(mat.nome) + ': giorni ' + esc(mat.giorni.join(', ')) + (mat.maxGiorno ? ' · max ' + mat.maxGiorno + (mat.perImpianti ? ' impianti' : '') + '/giorno' : '') + (mat.maxSettimana ? ' · max ' + mat.maxSettimana + '/settimana' + (mat.gruppo ? ' (' + esc(mat.gruppo) + ')' : '') : '') + (mat.oraLimite ? ' · ' + esc(mat.oraLimite) : '') + '</div>' : '') +
@@ -541,8 +549,7 @@ function disegnaEditor(){
   });
   collegaChips('e_tappe', d._tappe, function(){ return COMUNI || []; }, true);
   collegaChips('e_eq', d._eq, function(){ return S.liste.personale; }, false);
-  $('e_locnota').oninput = function(){ d._locNote = this.value.trim(); $('e_locnum').textContent = '(' + this.value.length + '/' + MAX_NOTE + ' caratteri)'; componi(d); aggiornaMancanti(); };
-  $('e_eqnota').oninput = function(){ d._eqNote = this.value.trim(); componi(d); };
+  $('e_nota').oninput = function(){ d._eqNote = this.value.trim(); $('e_notanum').textContent = '(' + this.value.length + '/' + MAX_NOTE + ' caratteri)'; componi(d); };
   $('e_giorno').onchange = function(){ ed.giorno = this.value; };
   $('e_sede').onchange = function(){ ed.sede = this.value; };
   $('e_no').onchange = function(){ if (this.checked) { d.n = 'NO'; d.mat = ''; } else d.n = ''; disegnaEditor(); };
@@ -809,7 +816,6 @@ function tgBox(){
     else if (t.collegato) h += '<p style="font-size:14px"><span class="chip ok">Collegato</span> Ricevi gli avvisi da <b>@' + esc(t.bot) + '</b>: programma approvato, revisioni, con il tasto «Ricevuto».</p>' +
       '<div class="row"><button class="btn" id="tgprova">Invia un messaggio di prova</button><button class="btn err" id="tgstop">Scollega</button></div>';
     else h += '<p style="font-size:14px"><span class="chip warn">Non collegato</span> Collegati per ricevere subito sul telefono le uscite che ti riguardano e le modifiche.</p>' +
-      '<ol style="font-size:14px;padding-left:18px;margin:0 0 12px"><li>Installa <b>Telegram</b> sul telefono, se non ce l\'hai.</li><li>Premi «Attiva Telegram»: inquadra il QR col telefono, oppure, se sei già sul telefono, premi «Apri Telegram».</li><li>Nel bot premi <b>Avvia</b>. Fatto.</li></ol>' +
       '<button class="btn pri" id="tgattiva">Attiva Telegram</button><div id="tgqr" style="margin-top:12px"></div>';
     box.innerHTML = h;
     if ($('tgprova')) $('tgprova').onclick = function(){ api('telegramProva').then(function(){ toast('Messaggio inviato su Telegram'); }).catch(function(e){ toast(e.message); }); };
@@ -817,13 +823,16 @@ function tgBox(){
     if ($('tgattiva')) $('tgattiva').onclick = function(){
       Promise.all([api('telegramLink'), caricaQr().catch(function(){})]).then(function(r){
         var l = r[0], qr = '';
-        if (window.qrcode) { var q = window.qrcode(0, 'M'); q.addData(l.link); q.make(); qr = q.createSvgTag({ cellSize: 6, margin: 2 }); }
-        $('tgqr').innerHTML = '<div class="row" style="align-items:flex-start;gap:16px"><div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px;line-height:0">' + qr + '</div>' +
-          '<div style="font-size:14px;max-width:300px"><p style="margin-top:0">Inquadra il QR con la fotocamera del telefono, poi nel bot premi <b>Avvia</b>. Il codice vale 30 minuti ed è solo tuo.</p>' +
-          '<div class="row"><a class="btn pri" href="' + esc(l.link) + '" target="_blank" rel="noopener">Apri Telegram</a><button class="btn" id="tgfatto">Ho premuto Avvia</button></div>' +
-          '<p style="margin:12px 0 4px">Non vedi il tasto <b>Avvia</b>? Invia al bot questo codice come messaggio:</p>' +
-          '<div class="row"><span class="mono" style="font-size:18px;letter-spacing:.06em;background:#efe9dc;border-radius:6px;padding:6px 10px;user-select:all">' + esc(l.codice) + '</span><button class="btn small" id="tgcopia">Copia</button></div></div></div>';
-        $('tgcopia').onclick = function(){ try { navigator.clipboard.writeText(l.codice); toast('Codice copiato'); } catch (e) {} };
+        if (window.qrcode) { var q = window.qrcode(0, 'M'); q.addData('https://t.me/' + l.bot); q.make(); qr = q.createSvgTag({ cellSize: 4, margin: 2 }); }
+        var cod = String(l.codice).slice(0, 3) + ' ' + String(l.codice).slice(3);
+        var passo = function(n, t){ return '<li style="display:flex;gap:10px;align-items:flex-start"><span style="flex:0 0 28px;height:28px;border-radius:50%;background:var(--top);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center">' + n + '</span><div style="flex:1">' + t + '</div></li>'; };
+        $('tgqr').innerHTML = '<ol style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px;font-size:14.5px">' +
+          passo(1, '<b>Apri il bot</b> sul telefono: premi «Apri il bot» qui sotto, oppure inquadra il QR, oppure cerca su Telegram <b>@' + esc(l.bot) + '</b>.' +
+            '<div class="row" style="margin-top:8px;align-items:center"><a class="btn pri" href="https://t.me/' + esc(l.bot) + '" target="_blank" rel="noopener">Apri il bot</a>' +
+            (qr ? '<span style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px;line-height:0">' + qr + '</span>' : '') + '</div>') +
+          passo(2, 'Se compare la scheda del bot premi <b>Messaggio</b>; se compare <b>Avvia</b> premilo.') +
+          passo(3, '<b>Scrivi nel bot questo codice</b> e invia:<div class="mono" style="font-size:34px;font-weight:600;letter-spacing:.12em;margin:6px 0 2px;color:var(--top)">' + esc(cod) + '</div><span class="hint">Vale 30 minuti ed è solo tuo.</span>') +
+          passo(4, 'Il bot risponde <b>«✅ Collegato!»</b>. <button class="btn small" id="tgfatto" style="margin-left:6px">Controlla</button>') + '</ol>';
         $('tgfatto').onclick = function(){ toast('Controllo…'); setTimeout(tgBox, 1500); };
         // controllo automatico per qualche minuto
         var n = 0, tm = setInterval(function(){ n++; if (!$('tgqr') || n > 24) return clearInterval(tm); api('telegramMio', {}, true).then(function(t){ if (t.collegato) { clearInterval(tm); toast('Telegram collegato'); tgBox(); } }); }, 10000);
