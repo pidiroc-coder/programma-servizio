@@ -233,8 +233,10 @@ function caricaTutto(){
   Promise.all([api('liste'), api('settimana'), caricaComuni()]).then(function(r){
     S.liste = r[0]; S.sett = r[1];
     S.vista = ls('pds_vista') || 'compila';
-    if (S.vista === 'approva' && !isDir()) S.vista = 'compila';
-    if (S.vista === 'admin' && !isAdmin()) S.vista = 'compila';
+    if ((S.vista === 'approva' || S.vista === 'avvisi') && !isDir()) S.vista = 'dash';
+    if (S.vista === 'admin' && !isAdmin()) S.vista = 'dash';
+    if (ruolo() === 'TUTTI' && S.vista === 'compila') S.vista = 'dash';
+    if (!ls('pds_vista') && ruolo() === 'TUTTI') S.vista = 'dash';
     disegna();
   }).catch(function(e){ if (S.token) vistaErrore(e.message); });
 }
@@ -264,8 +266,8 @@ function apriArchivio(n){
 
 // ---------------- telaio ----------------
 function disegna(){
-  var voci = [['dash','Dashboard'],['compila','In compilazione'],['archivio','Archivio']];
-  if (isDir()) voci.splice(2, 0, ['approva','Approvazione']);
+  var voci = ruolo() === 'TUTTI' ? [['dash','Le mie uscite'],['archivio','Archivio']] : [['dash','Dashboard'],['compila','In compilazione'],['archivio','Archivio']];
+  if (isDir()) { voci.splice(2, 0, ['approva','Approvazione']); voci.push(['avvisi','Avvisi']); }
   if (isAdmin()) voci.push(['admin','Amministrazione']);
   var u = S.utente;
   $('app').innerHTML =
@@ -284,7 +286,7 @@ function disegna(){
   $('besc').onclick = function(){ esci(); };
   $('bacc').onclick = function(){ S.vista = 'account'; disegna(); };
   if (S.vista !== 'archvista') S.arch = null;
-  ({ dash: vDash, compila: vCompila, archvista: vCompila, approva: function(){ vApprova(); }, archivio: vArchivio, admin: vAdmin, account: vAccount }[S.vista] || vCompila)();
+  ({ dash: vDash, avvisi: vAvvisi, compila: vCompila, archvista: vCompila, approva: function(){ vApprova(); }, archivio: vArchivio, admin: vAdmin, account: vAccount }[S.vista] || vCompila)();
 }
 
 function intestazione(sotto){
@@ -380,7 +382,7 @@ function rigaHtml(r, giorno, sede){
   return '<tr class="' + cls + '"><td>' + chip + '</td><td data-l="UOC">' + cel('uoc') + '</td><td data-l="Auto">' + cel('auto') + '</td><td data-l="Località"><b>' + cel('loc') + '</b></td>' +
     '<td data-l="Guida">' + cel('guida') + '</td><td data-l="Affidatario">' + cel('aff') + '</td><td data-l="Equipaggio">' + cel('eq') + '</td><td data-l="CdC">' + cel('cdc') + '</td>' +
     '<td data-l="Orari" class="mono">' + esc(r.p) + (r.r ? '–' + esc(r.r) : '') + '</td><td data-l="Matrice">' + cel('mat') + '</td><td data-l="N." class="mono">' + cel('n') + '</td>' +
-    '<td data-l="Codici" class="mono" style="font-size:12px">' + cel('cod') + '</td><td data-l="Salvata da" style="font-size:12px;color:var(--dim)">' + esc(r.chi) + (r.quando ? '<br>' + esc(r.quando) : '') + '</td><td class="act">' + az + '</td></tr>';
+    '<td data-l="Codici" class="mono" style="font-size:12px;font-weight:700">' + cel('cod') + '</td><td data-l="Salvata da" style="font-size:12px;color:var(--dim)">' + esc(r.chi) + (r.quando ? '<br>' + esc(r.quando) : '') + '</td><td class="act">' + az + '</td></tr>';
 }
 
 function dataIt(t){ var m = String(t || '').match(/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/); if (!m) return Date.now(); var d = new Date(); var x = new Date(d.getFullYear(), Number(m[2]) - 1, Number(m[1]), Number(m[3]), Number(m[4])); if (x > d) x.setFullYear(d.getFullYear() - 1); return x.getTime(); }
@@ -614,10 +616,84 @@ function salvaBozza(){
 }
 
 // ---------------- dashboard ----------------
+function rigaUscita(r){
+  return '<tr class="' + (r.fatta ? '' : '') + '"><td data-l="Data" class="mono"><b>' + esc(r.data) + '</b></td><td data-l="Giorno">' + esc(r.giornoLabel) + '</td><td data-l="Sede">' + esc(r.sede) + '</td><td data-l="Località"><b>' + esc(r.loc) + '</b></td><td data-l="Orari" class="mono">' + esc(r.p) + (r.r ? '–' + esc(r.r) : '') + '</td><td data-l="Auto">' + esc(r.auto) + '</td><td data-l="Guida">' + esc(r.guida) + '</td><td data-l="Affidatario">' + esc(r.aff) + '</td><td data-l="Equipaggio">' + esc(r.eq) + '</td><td data-l="Matrice">' + esc(r.mat) + '</td><td data-l="N." class="mono">' + esc(r.n) + '</td></tr>';
+}
+var TESTA_USCITE = '<thead><tr><th>Data</th><th>Giorno</th><th>Sede</th><th>Località</th><th>Orari</th><th>Auto</th><th>Guida</th><th>Affidatario</th><th>Equipaggio / note</th><th>Matrice</th><th>N.</th></tr></thead>';
+
+function mieHtml(m){
+  if (S.mieMese === undefined || S.mieMese === null) S.mieMese = m.meseCorrente;
+  var h = '<section class="card" style="margin-bottom:16px"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h2 style="margin:0">Le mie uscite</h2>' +
+    '<p class="hint" style="margin:4px 0 0">Solo programmi approvati, uscite in cui sei in equipaggio, guida o affidatario.</p></div>' +
+    '<div class="row" style="gap:22px"><div class="kpi"><div class="l">Uscite a ' + esc(m.mese.nome) + '</div><div class="v">' + m.mese.uscite + '</div></div>' +
+    '<div class="kpi"><div class="l">Già fatte</div><div class="v">' + m.mese.fatte + '</div></div>' +
+    '<div class="kpi"><div class="l">Totale ' + esc(m.anno) + '</div><div class="v">' + m.totaleAnno + '</div></div></div></div>';
+  // riepilogo mese per mese
+  h += '<div class="row" style="justify-content:space-between;margin:14px 0 6px"><b style="font-size:14px">Riepilogo ' + esc(m.anno) + ' mese per mese</b>' +
+    (m.anni.length > 1 ? '<label class="row" style="gap:6px;font-size:13px">Anno <select id="mieanno" style="min-height:34px;border:1px solid #cfc6b4;border-radius:6px;padding:4px 8px">' + m.anni.map(function(y){ return '<option' + (y === m.anno ? ' selected' : '') + '>' + y + '</option>'; }).join('') + '</select></label>' : '') + '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:6px">' + m.mesi.map(function(x, i){
+      var sel = i === S.mieMese, corr = i === m.meseCorrente;
+      return '<button data-mese="' + i + '" style="border:1px solid ' + (sel ? 'var(--top)' : 'var(--line)') + ';background:' + (sel ? 'var(--top)' : (corr ? '#fdf0d2' : 'var(--card)')) + ';color:' + (sel ? '#fff' : 'var(--ink)') + ';border-radius:8px;padding:8px 4px;cursor:pointer;text-align:center">' +
+        '<div style="font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;opacity:.8">' + x.nome.slice(0, 3) + '</div><div class="mono" style="font-size:22px;font-weight:600">' + (x.uscite || '–') + '</div></button>';
+    }).join('') + '</div>';
+  if (S.mieMese >= 0 && m.mesi[S.mieMese]) {
+    var mm = m.mesi[S.mieMese];
+    h += '<div class="sede" style="margin-top:12px">Uscite di ' + esc(mm.nome) + ' ' + esc(m.anno) + ' (' + mm.uscite + ')</div>' +
+      (mm.elenco.length ? '<div class="tw"><table class="rows">' + TESTA_USCITE + '<tbody>' + mm.elenco.map(rigaUscita).join('') + '</tbody></table></div>' : '<div class="empty">Nessuna uscita.</div>');
+  }
+  // prossime uscite (settimane non finite)
+  var prossime = 0;
+  m.programmi.forEach(function(pg){
+    var futuri = pg.righe.filter(function(r){ return !r.fatta; });
+    if (!futuri.length) return;
+    prossime += futuri.length;
+    h += '<div class="sede" style="margin-top:16px">Prossime uscite · programma n. ' + esc(pg.numero) + (pg.rev ? ' · Rev.' + esc(pg.rev) : '') + ' · ' + esc(pg.settimana) + '</div>' +
+      '<div class="tw"><table class="rows">' + TESTA_USCITE + '<tbody>' + futuri.map(rigaUscita).join('') + '</tbody></table></div>';
+  });
+  if (!prossime) h += '<div class="empty" style="margin-top:12px">Nessuna prossima uscita approvata per te.</div>';
+  return h + '</section>';
+}
+
+function collegaMie(ridisegna){
+  document.querySelectorAll('[data-mese]').forEach(function(b){ b.onclick = function(){ var i = Number(b.dataset.mese); S.mieMese = S.mieMese === i ? -1 : i; ridisegna(); }; });
+  if ($('mieanno')) $('mieanno').onchange = function(){ S.mieAnno = Number(this.value); S.mieMese = -1; ridisegna(); };
+}
+
+// riepilogo di tutte le persone (dirigente/admin)
+function tuttiHtml(t){
+  var soloCon = S.soloCon !== false;
+  var righe = t.righe.filter(function(x){ return !soloCon || x.tot > 0; });
+  var tot = t.righe.map(function(){ return 0; });
+  var h = '<section class="card" style="margin-bottom:16px"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Uscite per persona · ' + esc(t.anno) + '</h2><div class="row">' +
+    (t.anni.length > 1 ? '<select id="tutanno" style="min-height:34px;border:1px solid #cfc6b4;border-radius:6px;padding:4px 8px">' + t.anni.map(function(y){ return '<option' + (y === t.anno ? ' selected' : '') + '>' + y + '</option>'; }).join('') + '</select>' : '') +
+    '<label class="row" style="gap:6px;font-size:13px"><input type="checkbox" id="tutcon"' + (soloCon ? ' checked' : '') + '> solo chi ha uscite</label><button class="btn small" id="tutcsv">Scarica Excel</button></div></div>' +
+    '<p class="hint" style="margin:4px 0 10px">Programmi approvati: ogni uscita in cui la persona è in equipaggio, guida o affidatario.</p>' +
+    '<div class="tw"><table class="rows"><thead><tr><th>Persona</th>' + t.mesi.map(function(n, i){ return '<th style="text-align:center;' + (i === t.meseCorrente ? 'background:#fdf0d2' : '') + '">' + n.slice(0, 3) + '</th>'; }).join('') + '<th style="text-align:center">Totale</th></tr></thead><tbody>' +
+    (righe.length ? righe.map(function(x){ return '<tr><td data-l="Persona"><b>' + esc(x.nome) + '</b></td>' + x.mesi.map(function(v, i){ return '<td data-l="' + t.mesi[i].slice(0, 3) + '" class="mono" style="text-align:center;' + (i === t.meseCorrente ? 'background:#fffaf0' : '') + '">' + (v || '') + '</td>'; }).join('') + '<td data-l="Totale" class="mono" style="text-align:center"><b>' + x.tot + '</b></td></tr>'; }).join('')
+      : '<tr><td colspan="14" class="empty">Nessuna uscita approvata nel ' + esc(t.anno) + '.</td></tr>') + '</tbody></table></div></section>';
+  return h;
+}
+
+function csvTutti(t){
+  var r = [['Persona'].concat(t.mesi).concat(['Totale'])].concat(t.righe.map(function(x){ return [x.nome].concat(x.mesi).concat([x.tot]); }));
+  var csv = '﻿' + r.map(function(l){ return l.map(function(c){ return '"' + String(c).replace(/"/g, '""') + '"'; }).join(';'); }).join('\r\n');
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'Uscite per persona ' + t.anno + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+}
+
 function vDash(){
-  $('main').innerHTML = intestazione('Dashboard') + '<div class="empty">Caricamento…</div>';
+  if (ruolo() === 'TUTTI') return vMie();
+  $('main').innerHTML = intestazione('Dashboard') + '<div id="miebox"></div><div id="tutbox"></div><div id="statbox"><div class="empty">Caricamento…</div></div>';
+  var disMie = function(){ leggi('mieUscite', { anno: S.mieAnno || 0 }, function(m){ if (S.vista !== 'dash' || !$('miebox')) return; $('miebox').innerHTML = mieHtml(m); collegaMie(disMie); }).catch(function(){}); };
+  disMie();
+  var disTutti = function(){ leggi('riepilogoTutti', { anno: S.tutAnno || 0 }, function(t){ if (S.vista !== 'dash' || !$('tutbox')) return; $('tutbox').innerHTML = tuttiHtml(t);
+    $('tutcsv').onclick = function(){ csvTutti(t); };
+    $('tutcon').onchange = function(){ S.soloCon = this.checked; $('tutbox').innerHTML = tuttiHtml(t); disTutti(); };
+    if ($('tutanno')) $('tutanno').onchange = function(){ S.tutAnno = Number(this.value); disTutti(); };
+  }).catch(function(){}); };
+  if (isDir()) setTimeout(disTutti, 0);
   leggi('dashboard', {}, function(d){ if (S.vista !== 'dash') return;
-    var h = intestazione('Dashboard');
+    if (!$('statbox')) return;
+    var h = '';
     h += '<div class="grid kpis" style="margin-bottom:16px">' +
       kpi('Uscite salvate', d.salvate) + kpi('Da completare', d.daCompletare) + kpi('Campioni', d.campioni) + kpi('Bozze aperte', d.bozze) + '</div>';
     h += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start">';
@@ -635,9 +711,51 @@ function vDash(){
     h += '<section class="card"><h2>Per UOC</h2><div class="tw"><table class="rows"><thead><tr><th>UOC</th><th>Uscite</th><th>Campioni</th></tr></thead><tbody>' +
       d.perUoc.map(function(u){ return '<tr><td>' + esc(u.uoc) + '</td><td class="mono">' + u.righe + '</td><td class="mono">' + u.campioni + '</td></tr>'; }).join('') + '</tbody></table></div></section>';
     h += '</div>';
-    $('main').innerHTML = h;
+    $('statbox').innerHTML = h;
   }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
 }
+function vMie(){
+  var tgi = S.sett && S.sett.telegram;
+  var ban = tgi && tgi.configurato && !tgi.collegato ? '<div class="msg warn row" style="justify-content:space-between">📱 Attiva le notifiche Telegram per ricevere sul telefono le tue uscite e le modifiche. <button class="btn small pri" id="tgvai2">Attiva ora</button></div>' : '';
+  $('main').innerHTML = '<div class="eyebrow">' + esc(S.utente.nome || S.utente.username) + '</div><h1>Le mie uscite</h1>' + ban + '<div class="empty">Caricamento…</div>';
+  if ($('tgvai2')) $('tgvai2').onclick = function(){ S.vista = 'account'; disegna(); };
+  leggi('mieUscite', { anno: S.mieAnno || 0 }, function(m){ if (S.vista !== 'dash') return;
+    $('main').innerHTML = '<div class="eyebrow">' + esc(S.utente.nome || S.utente.username) + '</div><h1>Le mie uscite</h1>' + ban + mieHtml(m);
+    collegaMie(vMie);
+    if ($('tgvai2')) $('tgvai2').onclick = function(){ S.vista = 'account'; disegna(); };
+  }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
+}
+
+// ---------------- avvisi (dirigente/admin) ----------------
+function vAvvisi(){
+  S.filtroAvv = S.filtroAvv || 'aperti';
+  $('main').innerHTML = '<div class="eyebrow">Notifiche inviate</div><h1>Avvisi</h1><div class="empty">Caricamento…</div>';
+  leggi('avvisi', {}, function(a){ if (S.vista !== 'avvisi') return;
+    var aperti = function(x){ return !/RICEVUTO/.test(x.stato); };
+    var lista = S.filtroAvv === 'aperti' ? a.filter(aperti) : a;
+    var nApe = a.filter(aperti).length;
+    var col = function(st){ return /RICEVUTO/.test(st) ? 'ok' : (/NON|ERRORE/.test(st) ? 'err' : 'warn'); };
+    var gruppi = {}, ordine = [];
+    lista.forEach(function(x){ var k = x.rif + ' · ' + (x.tipo === 'REVISIONE' ? 'revisione' : 'approvazione'); if (!gruppi[k]) { gruppi[k] = []; ordine.push(k); } gruppi[k].push(x); });
+    var h = '<div class="eyebrow">Notifiche inviate</div><h1>Avvisi</h1>' +
+      '<div class="row" style="margin-bottom:14px"><div class="days" style="margin:0"><button data-f="aperti" class="' + (S.filtroAvv === 'aperti' ? 'on' : '') + '">Da confermare (' + nApe + ')</button><button data-f="tutti" class="' + (S.filtroAvv === 'tutti' ? 'on' : '') + '">Tutti (' + a.length + ')</button></div>' +
+      '<span class="hint">«Sollecita» rimanda l\'avviso su Telegram (o per email); «Chiama» usa il numero della colonna TELEFONO di Personale guida.</span></div>';
+    if (!ordine.length) h += '<div class="msg ok">' + (S.filtroAvv === 'aperti' ? 'Tutti gli avvisi sono stati confermati.' : 'Nessun avviso inviato.') + '</div>';
+    ordine.forEach(function(k){
+      h += '<section class="card" style="margin-bottom:14px"><h2>Programma ' + esc(k.replace(/^n\./, 'n. ')) + '</h2><div class="tw"><table class="rows"><thead><tr><th>Persona</th><th>Canale</th><th>Stato</th><th>Inviato</th><th>Ricevuto</th><th></th></tr></thead><tbody>' +
+        gruppi[k].map(function(x){
+          return '<tr><td data-l="Persona"><b>' + esc(x.nome) + '</b></td><td data-l="Canale">' + esc(x.canale) + '</td><td data-l="Stato"><span class="chip ' + col(x.stato) + '">' + esc(x.stato) + '</span></td>' +
+            '<td data-l="Inviato" class="mono" style="font-size:12.5px">' + esc(x.data) + '</td><td data-l="Ricevuto" class="mono" style="font-size:12.5px">' + esc(x.ricevuto || '—') + '</td><td class="act">' +
+            (!/RICEVUTO/.test(x.stato) ? '<button class="btn small" data-sol="' + x.riga + '">Sollecita</button> ' : '') +
+            (x.telefono ? '<a class="btn small pri" href="tel:' + esc(x.telefono.replace(/[^\d+]/g, '')) + '">Chiama ' + esc(x.telefono) + '</a>' : '<span class="hint">nessun telefono</span>') + '</td></tr>';
+        }).join('') + '</tbody></table></div></section>';
+    });
+    $('main').innerHTML = h;
+    document.querySelectorAll('[data-f]').forEach(function(b){ b.onclick = function(){ S.filtroAvv = b.dataset.f; vAvvisi(); }; });
+    document.querySelectorAll('[data-sol]').forEach(function(b){ b.onclick = function(){ api('sollecita', { riga: Number(b.dataset.sol) }).then(function(){ toast('Sollecito inviato'); vAvvisi(); }).catch(function(e){ toast(e.message); }); }; });
+  }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
+}
+
 function kpi(l, v){ return '<div class="card kpi"><div class="l">' + esc(l) + '</div><div class="v">' + esc(v) + '</div></div>'; }
 
 // ---------------- approvazione ----------------
@@ -747,12 +865,16 @@ function vAdmin(){
     var p = S.sett.programma;
     var h = intestazione('Amministrazione');
     h += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr));align-items:start">';
-    h += '<section class="card" style="grid-column:1/-1"><h2>Utenti</h2><p style="font-size:13px;color:var(--dim);margin-top:0">Gli utenti si aggiungono nel foglio "Personale guida" (colonne NOME_UTENTE, RUOLO, EMAIL, SEDE, ATTIVO). Le password non sono visibili a nessuno: se un utente la dimentica gli assegni una <b>password temporanea</b>, che al primo accesso dovrà cambiare.</p><div class="tw"><table class="rows"><thead><tr><th>Nome</th><th>Utente</th><th>Ruolo</th><th>Sede</th><th>Password</th><th>Ultimo accesso</th><th></th></tr></thead><tbody>' +
+    var nTg = u.filter(function(x){ return x.telegram; }).length, nAtt = u.filter(function(x){ return x.attivo; }).length;
+    h += '<section class="card" style="grid-column:1/-1"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Utenti</h2><span class="chip ' + (nTg === nAtt ? 'ok' : 'warn') + '">Telegram attivo: ' + nTg + ' su ' + nAtt + '</span></div><p style="font-size:13px;color:var(--dim);margin-top:0">Gli utenti si aggiungono nel foglio "Personale guida" (colonne NOME_UTENTE, RUOLO, EMAIL, SEDE, ATTIVO). Le password non sono visibili a nessuno: se un utente la dimentica gli assegni una <b>password temporanea</b>, che al primo accesso dovrà cambiare.</p><div class="tw"><table class="rows"><thead><tr><th>Nome</th><th>Utente</th><th>Ruolo</th><th>Sede</th><th>Password</th><th>Ultimo accesso</th><th>Telegram</th><th></th></tr></thead><tbody>' +
       u.map(function(x){
         var pw = !x.haPassword ? '<span class="chip warn">manca</span>' : (x.temporanea ? '<span class="chip warn">temporanea · da cambiare</span>' : '<span class="chip ok">scelta dall\'utente</span>');
         if (x.bloccato) pw += ' <span class="chip err">bloccato 15 min</span>';
         return '<tr><td data-l="Nome">' + esc(x.nome) + (x.attivo ? '' : ' <span class="chip err">non attivo</span>') + '</td><td class="mono" data-l="Utente">' + esc(x.username) + '</td><td data-l="Ruolo">' + esc(x.ruolo) + '</td><td data-l="Sede">' + esc(x.sede) + '</td><td data-l="Password">' + pw + '</td>' +
           '<td data-l="Ultimo accesso" class="mono" style="font-size:12.5px">' + (x.ultimoAccesso ? esc(x.ultimoAccesso) : '<span style="color:var(--dim)">mai</span>') + '</td>' +
+          '<td data-l="Telegram">' + (x.telegram ? '<span class="chip ok">attivo</span>' : '<span class="chip err">non attivo</span>' +
+            (x.email ? ' <a class="btn small" href="mailto:' + esc(x.email) + '?subject=' + encodeURIComponent('Attiva le notifiche Telegram - Programma di servizio') + '&body=' + encodeURIComponent('Ciao, per ricevere sul telefono le tue uscite apri l\'app Programma di Servizio → Account → «Attiva Telegram» e segui i 4 passi (codice di 6 cifre da scrivere nel bot).') + '">Sollecita</a>' : '') +
+            (x.telefono ? ' <a class="btn small" href="tel:' + esc(x.telefono.replace(/[^\d+]/g, '')) + '">Chiama</a>' : '')) + '</td>' +
           '<td class="act">' + (x.bloccato ? '<button class="btn small" data-sbl="' + esc(x.username) + '">Sblocca</button> ' : '') + '<button class="btn small" data-pwd="' + esc(x.username) + '">Password temporanea</button></td></tr>';
       }).join('') +
       '</tbody></table></div></section>';
