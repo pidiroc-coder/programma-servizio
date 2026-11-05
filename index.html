@@ -41,7 +41,7 @@ h1{margin:2px 0 14px;font-size:28px}
 h2{font-size:17px;margin:0 0 10px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 18px}
 .grid{display:grid;gap:14px}
-.kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr))}
 .kpi .l{font-size:12px;color:var(--dim)}.kpi .v{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600}
 a.btn{text-decoration:none}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:42px;padding:0 16px;border-radius:6px;border:1px solid var(--pri);background:var(--card);color:var(--pri);font-weight:600;cursor:pointer}
@@ -85,7 +85,7 @@ td.act{white-space:nowrap;text-align:right}
 .tw{overflow-x:auto}
 /* editor */
 .editor{border:2px solid var(--accent);background:#fffaf0}
-.editor .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 12px}
+.editor .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr));gap:10px 12px}
 .editor .wide{grid-column:span 2}
 .editor .riga{grid-column:1/-1}
 .editor .loc3{grid-column:span 3}
@@ -114,12 +114,21 @@ ul.clean{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;g
 @media (max-width:720px){
   h1{font-size:23px}
   .editor .wide,.editor .loc3{grid-column:span 1}
-  table.rows thead{display:none}
-  table.rows,table.rows tbody,table.rows tr,table.rows td{display:block;width:100%}
-  table.rows tr{border-bottom:1px solid var(--line);padding:6px 0}
-  table.rows td{border:0;padding:2px 10px}
-  table.rows td[data-l]::before{content:attr(data-l) ': ';font-weight:600;color:var(--label);font-size:12px}
-  td.act{text-align:left;padding-top:6px}
+  table.rows:not(.griglia) thead{display:none}
+  table.rows:not(.griglia),table.rows:not(.griglia) tbody,table.rows:not(.griglia) tr,table.rows:not(.griglia) td{display:block;width:100%}
+  table.rows:not(.griglia) tr{border-bottom:1px solid var(--line);padding:6px 0}
+  table.rows:not(.griglia) td{border:0;padding:2px 10px}
+  header.top .in{padding:6px 12px;gap:6px 10px;min-height:0}
+  .brand{order:1;font-size:16px}
+  .who{order:2;font-size:12px;gap:6px}.who button{padding:4px 8px}
+  nav.menu{order:3;width:100%;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -12px;padding:0 12px 4px}
+  nav.menu::-webkit-scrollbar{display:none}
+  nav.menu button{flex:none;min-height:36px;padding:6px 11px}
+  table.griglia{font-size:13px}table.griglia th,table.griglia td{padding:6px 7px;white-space:nowrap}
+  table.griglia th:first-child,table.griglia td:first-child{position:sticky;left:0;background:var(--card);z-index:1;box-shadow:1px 0 0 var(--line)}
+  table.griglia thead th:first-child{background:#efe9dc}
+  table.rows:not(.griglia) td[data-l]::before{content:attr(data-l) ': ';font-weight:600;color:var(--label);font-size:12px}
+  table.rows:not(.griglia) td.act{text-align:left;padding-top:6px}
 }
 </style>
 </head>
@@ -721,7 +730,7 @@ function mieHtml(m){
   // riepilogo mese per mese
   h += '<div class="row" style="justify-content:space-between;margin:14px 0 6px"><b style="font-size:14px">Riepilogo ' + esc(m.anno) + ' mese per mese</b>' +
     (m.anni.length > 1 ? '<label class="row" style="gap:6px;font-size:13px">Anno <select id="mieanno" style="min-height:34px;border:1px solid #cfc6b4;border-radius:6px;padding:4px 8px">' + m.anni.map(function(y){ return '<option' + (y === m.anno ? ' selected' : '') + '>' + y + '</option>'; }).join('') + '</select></label>' : '') + '</div>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:6px">' + m.mesi.map(function(x, i){
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(78px,100%),1fr));gap:6px">' + m.mesi.map(function(x, i){
       var sel = i === S.mieMese, corr = i === m.meseCorrente;
       return '<button data-mese="' + i + '" style="border:1px solid ' + (sel ? 'var(--top)' : 'var(--line)') + ';background:' + (sel ? 'var(--top)' : (corr ? '#fdf0d2' : 'var(--card)')) + ';color:' + (sel ? '#fff' : 'var(--ink)') + ';border-radius:8px;padding:8px 4px;cursor:pointer;text-align:center">' +
         '<div style="font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;opacity:.8">' + x.nome.slice(0, 3) + '</div><div class="mono" style="font-size:22px;font-weight:600">' + (x.uscite || '–') + '</div></button>';
@@ -760,7 +769,7 @@ function tuttiHtml(t){
     (t.anni.length > 1 ? '<select id="tutanno" style="min-height:34px;border:1px solid #cfc6b4;border-radius:6px;padding:4px 8px">' + t.anni.map(function(y){ return '<option' + (y === t.anno ? ' selected' : '') + '>' + y + '</option>'; }).join('') + '</select>' : '') +
     '<label class="row" style="gap:6px;font-size:13px"><input type="checkbox" id="tutcon"' + (soloCon ? ' checked' : '') + '> solo chi ha uscite</label><button class="btn small" id="tutcsv">Scarica Excel</button></div></div>' +
     '<p class="hint" style="margin:4px 0 10px">Programmi approvati: ogni uscita in cui la persona è in equipaggio, guida o affidatario.</p>' +
-    '<div class="tw"><table class="rows"><thead><tr><th>Persona</th>' + t.mesi.map(function(n, i){ return '<th style="text-align:center;' + (i === t.meseCorrente ? 'background:#fdf0d2' : '') + '">' + n.slice(0, 3) + '</th>'; }).join('') + '<th style="text-align:center">Totale</th></tr></thead><tbody>' +
+    '<div class="tw"><table class="rows griglia"><thead><tr><th>Persona</th>' + t.mesi.map(function(n, i){ return '<th style="text-align:center;' + (i === t.meseCorrente ? 'background:#fdf0d2' : '') + '">' + n.slice(0, 3) + '</th>'; }).join('') + '<th style="text-align:center">Totale</th></tr></thead><tbody>' +
     (righe.length ? righe.map(function(x){ return '<tr><td data-l="Persona"><b>' + esc(x.nome) + '</b></td>' + x.mesi.map(function(v, i){ return '<td data-l="' + t.mesi[i].slice(0, 3) + '" class="mono" style="text-align:center;' + (i === t.meseCorrente ? 'background:#fffaf0' : '') + '">' + (v || '') + '</td>'; }).join('') + '<td data-l="Totale" class="mono" style="text-align:center"><b>' + x.tot + '</b></td></tr>'; }).join('')
       : '<tr><td colspan="14" class="empty">Nessuna uscita approvata nel ' + esc(t.anno) + '.</td></tr>') + '</tbody></table></div></section>';
   return h;
@@ -789,7 +798,7 @@ function vDash(){
     var h = '';
     h += '<div class="grid kpis" style="margin-bottom:16px">' +
       kpi('Uscite salvate', d.salvate) + kpi('Da completare', d.daCompletare) + kpi('Campioni', d.campioni) + kpi('Bozze aperte', d.bozze) + '</div>';
-    h += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start">';
+    h += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));align-items:start">';
     h += '<section class="card"><h2>Limiti settimanali</h2><ul class="clean">' + d.limiti.map(function(l){
       var pc = l.max ? Math.min(100, Math.round(l.usati / l.max * 100)) : 0;
       var cls = l.usati > l.max ? 'over' : (pc >= 85 ? 'near' : '');
@@ -798,10 +807,10 @@ function vDash(){
     var mats = {};
     d.giorni.forEach(function(g){ Object.keys(g.mat).forEach(function(k){ mats[k] = 1; }); });
     var lm = Object.keys(mats).sort();
-    h += '<section class="card"><h2>Campioni per giorno e matrice</h2><div class="tw"><table class="rows"><thead><tr><th>Matrice</th>' + d.giorni.map(function(g){ return '<th>' + g.giorno + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    h += '<section class="card"><h2>Campioni per giorno e matrice</h2><div class="tw"><table class="rows griglia"><thead><tr><th>Matrice</th>' + d.giorni.map(function(g){ return '<th>' + g.giorno + '</th>'; }).join('') + '</tr></thead><tbody>' +
       (lm.length ? lm.map(function(k){ var c = S.liste.matrici[k] || {}; return '<tr><td>' + esc(k) + '</td>' + d.giorni.map(function(g){ var v = g.mat[k] || 0; var over = c.maxGiorno && v > c.maxGiorno; return '<td class="mono" style="' + (over ? 'color:var(--err);font-weight:700' : '') + '">' + (v || '') + '</td>'; }).join('') + '</tr>'; }).join('') : '<tr><td colspan="7" class="empty">Nessun campione inserito.</td></tr>') +
       '<tr><td><b>Uscite</b></td>' + d.giorni.map(function(g){ return '<td class="mono"><b>' + (g.righe || '') + '</b></td>'; }).join('') + '</tr></tbody></table></div></section>';
-    h += '<section class="card"><h2>Per UOC</h2><div class="tw"><table class="rows"><thead><tr><th>UOC</th><th>Uscite</th><th>Campioni</th></tr></thead><tbody>' +
+    h += '<section class="card"><h2>Per UOC</h2><div class="tw"><table class="rows griglia"><thead><tr><th>UOC</th><th>Uscite</th><th>Campioni</th></tr></thead><tbody>' +
       d.perUoc.map(function(u){ return '<tr><td>' + esc(u.uoc) + '</td><td class="mono">' + u.righe + '</td><td class="mono">' + u.campioni + '</td></tr>'; }).join('') + '</tbody></table></div></section>';
     h += '</div>';
     $('statbox').innerHTML = h;
@@ -910,7 +919,7 @@ function vApprova(numero){
     if (!c.righe && !rev) {
       h += '<div class="msg warn">Nessuna uscita inserita: non c\'è ancora niente da approvare.</div>';
     } else {
-      h += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start"><div class="grid">';
+      h += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));align-items:start"><div class="grid">';
       h += '<section class="card"><h2>Controlli</h2><ul class="clean">' +
         chk(c.problemi.length === 0, 'Tutte le righe salvate e complete (' + c.salvate + ' di ' + c.righe + ')') +
         (rev ? '' : chk(c.bozze === 0, c.bozze ? c.bozze + ' bozze non salvate (non entrano nel programma)' : 'Nessuna bozza aperta', true)) + '</ul>' +
@@ -1000,7 +1009,7 @@ function vAdmin(){
   leggi('utenti', {}, function(u){ if (S.vista !== 'admin') return;
     var p = S.sett.programma;
     var h = intestazione('Amministrazione');
-    h += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr));align-items:start">';
+    h += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));align-items:start">';
     var nTg = u.filter(function(x){ return x.attivo && x.push; }).length, nAtt = u.filter(function(x){ return x.attivo; }).length;
     h += '<section class="card" style="grid-column:1/-1"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Utenti</h2><span class="chip ' + (nTg === nAtt ? 'ok' : 'warn') + '">Notifiche attive: ' + nTg + ' su ' + nAtt + '</span></div><p style="font-size:13px;color:var(--dim);margin-top:0">Gli utenti si aggiungono nel foglio "Personale guida" (colonne NOME_UTENTE, RUOLO, EMAIL, SEDE, ATTIVO). Le password non sono visibili a nessuno: se un utente la dimentica gli assegni una <b>password temporanea</b>, che al primo accesso dovrà cambiare.</p><div class="tw"><table class="rows"><thead><tr><th>Nome</th><th>Utente</th><th>Ruolo</th><th>Sede</th><th>Password</th><th>Ultimo accesso</th><th>Notifiche</th><th></th></tr></thead><tbody>' +
       u.map(function(x){
@@ -1072,7 +1081,7 @@ function mostraTemporanea(u, pw){
 
 function codici(conferma){
   api('importaCodici', { conferma: conferma }).then(function(r){
-    $('codbox').innerHTML = (r.anteprima ? '' : '<div class="msg ok">Codici allineati.</div>') + '<div class="tw"><table class="rows" style="margin-bottom:10px"><thead><tr><th>Matrice</th><th>Programma in uso</th><th>Questo programma</th></tr></thead><tbody>' +
+    $('codbox').innerHTML = (r.anteprima ? '' : '<div class="msg ok">Codici allineati.</div>') + '<div class="tw"><table class="rows griglia" style="margin-bottom:10px"><thead><tr><th>Matrice</th><th>Programma in uso</th><th>Questo programma</th></tr></thead><tbody>' +
       r.matrici.map(function(m){ var diverso = m.primoVecchio !== m.primoNuovo || m.disponibiliVecchio !== m.disponibiliNuovo; return '<tr style="' + (diverso && r.anteprima ? 'background:var(--mod)' : '') + '"><td>' + esc(m.matrice) + '</td><td class="mono">' + m.disponibiliVecchio + ' liberi · dal ' + esc(m.primoVecchio || '—') + '</td><td class="mono">' + m.disponibiliNuovo + ' liberi · dal ' + esc(m.primoNuovo || '—') + '</td></tr>'; }).join('') + '</tbody></table></div>';
     $('bcodC').classList.toggle('hidden', !r.anteprima);
   }).catch(function(e){ toast(e.message); });
@@ -1186,7 +1195,7 @@ window.addEventListener('hashchange', function(){ if (!S.token || !S.sett || !lo
 function vAccount(){
   document.querySelectorAll('nav.menu button').forEach(function(b){ b.classList.remove('on'); });
   $('main').innerHTML = '<div class="eyebrow">Account</div><h1>' + esc(S.utente.nome || S.utente.username) + '</h1>' +
-    '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start">' +
+    '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));align-items:start">' +
     '<section class="card" id="pushbox"></section>' + (pushServer().telegram ? '<section class="card" id="tgbox"><h2>Notifiche Telegram</h2><div class="empty">Caricamento…</div></section>' : '') +
     '<form class="card grid" id="fpw"><h2>Cambia password</h2><label class="f">Password attuale<input type="password" name="a" autocomplete="current-password" required></label>' +
     '<label class="f">Nuova password (almeno 8 caratteri)<input type="password" name="n" autocomplete="new-password" minlength="8" required></label>' +
