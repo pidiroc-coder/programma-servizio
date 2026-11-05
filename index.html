@@ -242,7 +242,9 @@ function caricaTutto(){
     if (S.vista === 'archvista') S.vista = 'archivio';
     if (ruolo() === 'TUTTI' && S.vista === 'compila') S.vista = 'dash';
     if (!ls('pds_vista') && ruolo() === 'TUTTI') S.vista = 'dash';
+    leggiHash();
     disegna();
+    rinnovaPush();
   }).catch(function(e){ if (S.token) vistaErrore(e.message); });
 }
 
@@ -362,7 +364,7 @@ function disegna(){
   $('besc').onclick = function(){ esci(); };
   $('bacc').onclick = function(){ S.vista = 'account'; disegna(); };
   if (S.vista !== 'archvista') S.arch = null;
-  ({ dash: vDash, notifiche: vNotifiche, avvisi: vAvvisi, compila: vCompila, archvista: vCompila, approva: function(){ vApprova(); }, archivio: vArchivio, admin: vAdmin, account: vAccount }[S.vista] || vCompila)();
+  ({ dash: vDash, notifiche: vNotifiche, avvisi: vAvvisi, compila: vCompila, archvista: vCompila, approva: function(){ var n = S.approvaNum; S.approvaNum = null; vApprova(n || undefined); }, archivio: vArchivio, admin: vAdmin, account: vAccount }[S.vista] || vCompila)();
 }
 
 function aggiornaBadge(){ var b = $('nbadge'); if (!b || !S.sett) return; var n = S.sett.notifiche || 0; b.textContent = n || ''; b.style.display = n ? '' : 'none'; }
@@ -390,10 +392,7 @@ function vCompila(){
     h += '<div class="row" style="margin-bottom:14px"><button class="btn pri" id="bnuova">+ Nuova uscita</button>' +
       (p.approvato && !p.archivio ? '<span style="font-size:13px;color:var(--dim)">Il programma è approvato: ogni modifica crea la revisione da far approvare al dirigente.</span>' : '') + '</div>';
   }
-  var tgi = S.sett && S.sett.telegram;
-  if (!p.archivio && tgi && tgi.configurato && !tgi.collegato && ls('pds_tg_nascondi') !== '1') {
-    h += '<div class="msg warn row" style="justify-content:space-between">📱 Attiva le notifiche Telegram per ricevere sul telefono le tue uscite e le modifiche. <span class="row"><button class="btn small pri" id="tgvai">Attiva ora</button><button class="btn small" id="tgdopo">Più tardi</button></span></div>';
-  }
+  if (!p.archivio) h += bannerPush();
   h += '<div id="edbox"></div>';
   var miei = p.archivio ? [] : (F().bozze || []);
   h += '<div class="days">' + ['TUTTI'].concat(giorni.map(function(g){ return g.key; })).map(function(k){
@@ -416,8 +415,7 @@ function vCompila(){
     h += '</section>';
   });
   $('main').innerHTML = h;
-  if ($('tgvai')) $('tgvai').onclick = function(){ S.vista = 'account'; disegna(); };
-  if ($('tgdopo')) $('tgdopo').onclick = function(){ ls('pds_tg_nascondi', '1'); vCompila(); };
+  collegaBannerPush();
   if ($('barch')) $('barch').onclick = function(){ S.arch = null; S.ed = null; S.vista = 'archivio'; disegna(); };
   if ($('bnuova')) $('bnuova').onclick = function(){ apriEditor({ giorno: S.giorno !== 'TUTTI' ? S.giorno : primoGiorno(), sede: sedeUtente(), dati: {} }); };
   document.querySelectorAll('.days button').forEach(function(b){ b.onclick = function(){ S.giorno = b.dataset.g; vCompila(); }; });
@@ -776,7 +774,8 @@ function csvTutti(t){
 
 function vDash(){
   if (ruolo() === 'TUTTI') return vMie();
-  $('main').innerHTML = intestazione('Dashboard') + '<div id="miebox"></div><div id="tutbox"></div><div id="statbox"><div class="empty">Caricamento…</div></div>';
+  $('main').innerHTML = intestazione('Dashboard') + bannerPush() + '<div id="miebox"></div><div id="tutbox"></div><div id="statbox"><div class="empty">Caricamento…</div></div>';
+  collegaBannerPush();
   var disMie = function(){ leggi('mieUscite', { anno: S.mieAnno || 0 }, function(m){ if (S.vista !== 'dash' || !$('miebox')) return; $('miebox').innerHTML = mieHtml(m); collegaMie(disMie); }).catch(function(){}); };
   disMie();
   var disTutti = function(){ leggi('riepilogoTutti', { anno: S.tutAnno || 0 }, function(t){ if (S.vista !== 'dash' || !$('tutbox')) return; $('tutbox').innerHTML = tuttiHtml(t);
@@ -809,14 +808,13 @@ function vDash(){
   }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
 }
 function vMie(){
-  var tgi = S.sett && S.sett.telegram;
-  var ban = tgi && tgi.configurato && !tgi.collegato ? '<div class="msg warn row" style="justify-content:space-between">📱 Attiva le notifiche Telegram per ricevere sul telefono le tue uscite e le modifiche. <button class="btn small pri" id="tgvai2">Attiva ora</button></div>' : '';
+  var ban = bannerPush();
   $('main').innerHTML = '<div class="eyebrow">' + esc(S.utente.nome || S.utente.username) + '</div><h1>Le mie uscite</h1>' + ban + '<div class="empty">Caricamento…</div>';
-  if ($('tgvai2')) $('tgvai2').onclick = function(){ S.vista = 'account'; disegna(); };
+  collegaBannerPush();
   leggi('mieUscite', { anno: S.mieAnno || 0 }, function(m){ if (S.vista !== 'dash') return;
     $('main').innerHTML = '<div class="eyebrow">' + esc(S.utente.nome || S.utente.username) + '</div><h1>Le mie uscite</h1>' + ban + mieHtml(m);
     collegaMie(vMie);
-    if ($('tgvai2')) $('tgvai2').onclick = function(){ S.vista = 'account'; disegna(); };
+    collegaBannerPush();
   }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
 }
 
@@ -830,7 +828,7 @@ function vNotifiche(){
     var voce = function(x){
       var st = /^ASSENTE/.test(x.stato) ? '<span class="chip err">Assente</span>' : (x.accettabile ? '<span class="chip warn">Da accettare</span>' : '<span class="chip ok">Accettata</span>');
       return '<div class="notif"><div class="t"><div class="row" style="gap:8px">' + st + '<b>' + esc(TIPO_N[x.tipo] || x.tipo) + ' · ' + esc(x.rif.replace(/^n\./, 'n. ').replace(/ FP$/, '')) + '</b><span class="hint">arrivata ' + esc(x.data) +
-        (x.accettabile && x.emailTra ? ' · <span style="color:var(--err)">email tra ' + x.emailTra + ' min se non accetti</span>' : '') +
+        (x.consegnata ? ' · <span style="color:var(--ok)">✔ consegnata sul telefono</span>' : '') + (x.accettabile && x.emailTra ? ' · <span style="color:var(--err)">email tra ' + x.emailTra + ' min se non accetti</span>' : '') +
         (!x.accettabile ? ' · ' + esc(/^ASSENTE/.test(x.stato) ? 'segnalata ' : 'accettata ') + esc(x.quando) + (/RICEVUTO/.test(x.stato) ? ' (Telegram)' : '') : '') + '</span></div>' +
         '<pre>' + esc(x.testo) + '</pre>' + (/^ASSENTE · /.test(x.stato) ? '<div class="hint">Nota: ' + esc(x.stato.replace(/^ASSENTE · /, '')) + '</div>' : '') +
         '<div id="as' + x.riga + '"></div></div>' +
@@ -862,20 +860,20 @@ function vAvvisi(){
     var delProg = a.filter(function(x){ return progAvv(x.rif) === S.progAvv; });
     var acc = function(x){ return /^(RICEVUTO|ACCETTATO)/.test(x.stato); }, ass = function(x){ return /^ASSENTE/.test(x.stato); };
     var aperti = function(x){ return !acc(x) && !ass(x); };
-    var arrivata = function(x){ return x.canale === 'TELEGRAM' && !/ERRORE/.test(x.stato); };
+    var arrivata = function(x){ return !!x.consegnata || (x.canale === 'TELEGRAM' && !/ERRORE/.test(x.stato)); };
     var lista = S.filtroAvv === 'aperti' ? delProg.filter(aperti) : delProg;
     var h = '<div class="eyebrow">Notifiche inviate</div><h1>Avvisi</h1>' +
       '<div class="row" style="margin-bottom:14px"><label class="row" style="gap:6px;font-size:14px;font-weight:600">Programma <select id="avprog" style="min-height:38px;border:1px solid #cfc6b4;border-radius:6px;padding:4px 8px">' + progs.map(function(n){ return '<option value="' + esc(n) + '"' + (n === S.progAvv ? ' selected' : '') + '>n. ' + esc(n) + '</option>'; }).join('') + '</select></label>' +
       '<div class="days" style="margin:0"><button data-f="aperti" class="' + (S.filtroAvv === 'aperti' ? 'on' : '') + '">Da accettare (' + delProg.filter(aperti).length + ')</button><button data-f="tutti" class="' + (S.filtroAvv === 'tutti' ? 'on' : '') + '">Tutti (' + delProg.length + ')</button></div></div>' +
-      '<div class="grid kpis" style="margin-bottom:14px">' + kpi('Inviate', delProg.length) + kpi('Arrivate (Telegram)', delProg.filter(arrivata).length) + kpi('Accettate', delProg.filter(acc).length) +
+      '<div class="grid kpis" style="margin-bottom:14px">' + kpi('Inviate', delProg.length) + kpi('Arrivate sul telefono', delProg.filter(arrivata).length) + kpi('Accettate', delProg.filter(acc).length) +
       kpi('Assenti', delProg.filter(ass).length) + kpi('Email per mancata accettazione', delProg.filter(function(x){ return x.emailInviata; }).length) + '</div>' +
-      '<p class="hint" style="margin-top:0">Arrivata = Telegram ha consegnato il messaggio (per email e app non si può sapere). «Sollecita» rimanda l\'avviso; «Chiama» usa il numero della colonna TELEFONO di Personale guida.</p>';
+      '<p class="hint" style="margin-top:0">Arrivata = il telefono ha confermato di aver ricevuto la notifica (per email non si può sapere). «Sollecita» rimanda l\'avviso; «Chiama» usa il numero della colonna TELEFONO di Personale guida.</p>';
     var col = function(x){ return acc(x) ? 'ok' : (ass(x) || /NON|ERRORE/.test(x.stato) ? 'err' : 'warn'); };
     if (!lista.length) h += '<div class="msg ok">' + (S.filtroAvv === 'aperti' ? 'Tutte le notifiche di questo programma sono state accettate.' : 'Nessun avviso.') + '</div>';
     else h += '<section class="card"><div class="tw"><table class="rows"><thead><tr><th>Persona</th><th>Avviso</th><th>Inviata</th><th>Arrivata</th><th>Stato</th><th>Email</th><th></th></tr></thead><tbody>' +
       lista.map(function(x){
         return '<tr><td data-l="Persona"><b>' + esc(x.nome) + '</b></td><td data-l="Avviso">' + esc(TIPO_N[x.tipo] || x.tipo) + '<div class="hint">' + esc(x.rif) + '</div></td>' +
-          '<td data-l="Inviata" class="mono" style="font-size:12.5px">' + esc(x.data) + ' · ' + esc(x.canale.toLowerCase()) + '</td><td data-l="Arrivata">' + (arrivata(x) ? '✔' : '—') + '</td>' +
+          '<td data-l="Inviata" class="mono" style="font-size:12.5px">' + esc(x.data) + ' · ' + esc(x.canale.toLowerCase()) + '</td><td data-l="Arrivata">' + (arrivata(x) ? '✔ ' + esc(x.consegnata || '') : '—') + '</td>' +
           '<td data-l="Stato"><span class="chip ' + col(x) + '">' + esc(x.stato) + '</span>' + (x.ricevuto ? ' <span class="mono" style="font-size:12px">' + esc(x.ricevuto) + '</span>' : '') + '</td>' +
           '<td data-l="Email" class="mono" style="font-size:12.5px">' + esc(x.emailInviata || '—') + '</td><td class="act">' +
           (aperti(x) ? '<button class="btn small" data-sol="' + x.riga + '">Sollecita</button> ' : '') +
@@ -919,7 +917,9 @@ function vApprova(numero){
         (c.problemi.length ? '<h2 style="margin-top:14px">Da sistemare</h2><ul class="clean" style="font-size:14px">' + c.problemi.map(function(x){ return '<li>• ' + esc(x) + '</li>'; }).join('') + '</ul>' : '') + '</section>';
       if (rev) {
         h += '<section class="card"><h2>Modifiche della Rev.' + c.rev + '</h2><ul class="clean" style="font-size:14px">' + c.modifiche.map(function(m){
-          return '<li><span class="chip ' + (m.tipo === 'AGGIUNTA' ? 'add' : (m.tipo === 'ANNULLATA' ? 'del' : 'mod')) + '">' + m.tipo + '</span> <b>' + esc(GIORNI[m.giorno] || m.giorno) + ' · ' + esc(m.sede) + '</b> · ' + esc(m.loc) +
+          return '<li><span class="chip ' + (m.tipo === 'AGGIUNTA' ? 'add' : (m.tipo === 'ANNULLATA' ? 'del' : 'mod')) + '">' + m.tipo + '</span>' + (m.fuori ? ' <span class="chip warn">Fuori programma</span>' : '') + ' <b>' + esc(GIORNI[m.giorno] || m.giorno) + ' · ' + esc(m.sede) + '</b> · ' + esc(m.loc) +
+            (m.fuori ? '<div class="hint" style="margin:3px 0 0 8px">' + esc([m.mat ? m.mat + (m.tipoInt ? ' (' + m.tipoInt + ')' : '') + ' ' + m.n : 'nessun campione', m.cod, m.eq, 'inserita: ' + String(m.fuori).replace(/^SI · /, '')].filter(String).join(' · ')) + '</div>' +
+              (numero ? '<button class="btn err small" style="margin:6px 0 0 8px" data-rif="' + esc(m.id) + '">Rifiuta questa uscita</button>' : '') : '') +
             (m.differenze.length ? '<div style="margin:4px 0 0 8px;font-size:13px">' + m.differenze.map(function(x){ return esc(x.etichetta) + ': <s>' + esc(x.prima || '—') + '</s> → <b>' + esc(x.dopo || '—') + '</b>'; }).join('<br>') + '</div>' : '') + '</li>';
         }).join('') + '</ul></section>';
       }
@@ -931,6 +931,10 @@ function vApprova(numero){
     }
     $('main').innerHTML = h;
     if ($('bindietro')) $('bindietro').onclick = function(){ vApprova(); };
+    document.querySelectorAll('[data-rif]').forEach(function(b){ b.onclick = function(){
+      if (!confirm('Rifiutare questa uscita fuori programma? Viene tolta, i codici risultano persi e l\'equipaggio riceve «uscita annullata».')) return;
+      api('rifiutaFuori', { numero: numero, id: b.dataset.rif }).then(function(){ toast('Uscita rifiutata'); vApprova(numero); }).catch(function(e){ toast(e.message); });
+    }; });
     document.querySelectorAll('[data-rev]').forEach(function(b){ b.onclick = function(){ vApprova(Number(b.dataset.rev)); }; });
     if ($('bapp')) $('bapp').onclick = function(){
       if (!confirm(rev ? 'Approvare la Rev.' + c.rev + ' del programma n. ' + c.programma.numero + ' e avvisare le persone coinvolte?' : 'Approvare il programma n. ' + c.programma.numero + '? Il foglio passerà subito alla settimana successiva.')) return;
@@ -997,22 +1001,25 @@ function vAdmin(){
     var p = S.sett.programma;
     var h = intestazione('Amministrazione');
     h += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr));align-items:start">';
-    var nTg = u.filter(function(x){ return x.telegram; }).length, nAtt = u.filter(function(x){ return x.attivo; }).length;
-    h += '<section class="card" style="grid-column:1/-1"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Utenti</h2><span class="chip ' + (nTg === nAtt ? 'ok' : 'warn') + '">Telegram attivo: ' + nTg + ' su ' + nAtt + '</span></div><p style="font-size:13px;color:var(--dim);margin-top:0">Gli utenti si aggiungono nel foglio "Personale guida" (colonne NOME_UTENTE, RUOLO, EMAIL, SEDE, ATTIVO). Le password non sono visibili a nessuno: se un utente la dimentica gli assegni una <b>password temporanea</b>, che al primo accesso dovrà cambiare.</p><div class="tw"><table class="rows"><thead><tr><th>Nome</th><th>Utente</th><th>Ruolo</th><th>Sede</th><th>Password</th><th>Ultimo accesso</th><th>Telegram</th><th></th></tr></thead><tbody>' +
+    var nTg = u.filter(function(x){ return x.attivo && x.push; }).length, nAtt = u.filter(function(x){ return x.attivo; }).length;
+    h += '<section class="card" style="grid-column:1/-1"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Utenti</h2><span class="chip ' + (nTg === nAtt ? 'ok' : 'warn') + '">Notifiche attive: ' + nTg + ' su ' + nAtt + '</span></div><p style="font-size:13px;color:var(--dim);margin-top:0">Gli utenti si aggiungono nel foglio "Personale guida" (colonne NOME_UTENTE, RUOLO, EMAIL, SEDE, ATTIVO). Le password non sono visibili a nessuno: se un utente la dimentica gli assegni una <b>password temporanea</b>, che al primo accesso dovrà cambiare.</p><div class="tw"><table class="rows"><thead><tr><th>Nome</th><th>Utente</th><th>Ruolo</th><th>Sede</th><th>Password</th><th>Ultimo accesso</th><th>Notifiche</th><th></th></tr></thead><tbody>' +
       u.map(function(x){
         var pw = !x.haPassword ? '<span class="chip warn">manca</span>' : (x.temporanea ? '<span class="chip warn">temporanea · da cambiare</span>' : '<span class="chip ok">scelta dall\'utente</span>');
         if (x.bloccato) pw += ' <span class="chip err">bloccato 15 min</span>';
         return '<tr><td data-l="Nome">' + esc(x.nome) + (x.attivo ? '' : ' <span class="chip err">non attivo</span>') + '</td><td class="mono" data-l="Utente">' + esc(x.username) + '</td><td data-l="Ruolo">' + esc(x.ruolo) + '</td><td data-l="Sede">' + esc(x.sede) + '</td><td data-l="Password">' + pw + '</td>' +
           '<td data-l="Ultimo accesso" class="mono" style="font-size:12.5px">' + (x.ultimoAccesso ? esc(x.ultimoAccesso) : '<span style="color:var(--dim)">mai</span>') + '</td>' +
-          '<td data-l="Telegram">' + (x.telegram ? '<span class="chip ok">attivo</span>' : '<span class="chip err">non attivo</span>' +
-            (x.email ? ' <a class="btn small" href="mailto:' + esc(x.email) + '?subject=' + encodeURIComponent('Attiva le notifiche Telegram - Programma di servizio') + '&body=' + encodeURIComponent('Ciao, per ricevere sul telefono le tue uscite apri l\'app Programma di Servizio → Account → «Attiva Telegram» e segui i 4 passi (codice di 6 cifre da scrivere nel bot).') + '">Sollecita</a>' : '') +
+          '<td data-l="Notifiche">' + (x.push ? '<span class="chip ok">' + x.push + (x.push === 1 ? ' dispositivo' : ' dispositivi') + '</span>' : '<span class="chip err">non attive</span>' +
+            (x.email ? ' <a class="btn small" href="mailto:' + esc(x.email) + '?subject=' + encodeURIComponent('Attiva le notifiche - Programma di servizio') + '&body=' + encodeURIComponent('Ciao, per ricevere sul telefono le tue uscite apri ' + APP_URL + ' sul telefono, installa l\'app sulla schermata Home (Android: Chrome → ⋮ → Installa app; iPhone: Safari → Condividi → Aggiungi alla schermata Home), entra e premi «Attiva notifiche» (oppure Account → Notifiche sul telefono).') + '">Sollecita</a>' : '') +
             (x.telefono ? ' <a class="btn small" href="tel:' + esc(x.telefono.replace(/[^\d+]/g, '')) + '">Chiama</a>' : '')) + '</td>' +
           '<td class="act">' + (x.bloccato ? '<button class="btn small" data-sbl="' + esc(x.username) + '">Sblocca</button> ' : '') + '<button class="btn small" data-pwd="' + esc(x.username) + '">Password temporanea</button></td></tr>';
       }).join('') +
       '</tbody></table></div></section>';
-    h += '<div class="grid"><section class="card"><h2>Bot Telegram</h2><div id="tgadm" style="font-size:14px">' + (S.sett.telegram && S.sett.telegram.configurato ? '<span class="chip ok">Attivo</span> @' + esc(S.sett.telegram.bot) : '<span class="chip warn">Non configurato</span>') + '</div>' +
-      '<p style="font-size:13px;margin:8px 0">Su Telegram apri <b>@BotFather</b> → <span class="mono">/newbot</span> → scegli nome e username del bot → copia il <b>token</b> e incollalo qui.</p>' +
-      '<div class="row"><input id="tgtoken" type="password" placeholder="123456789:AA…" style="flex:1 1 220px;min-height:42px;border:1px solid #cfc6b4;border-radius:6px;padding:8px 10px"><button class="btn pri" id="tgsalva">Salva token</button></div></section>' +
+    h += '<div class="grid"><section class="card"><h2>Notifiche app (Firebase)</h2><div id="pushadm" style="font-size:14px"><span class="empty">Caricamento…</span></div>' +
+      '<label class="f" style="margin-top:8px">Chiave del server (file .json)<textarea id="fcmkey" rows="3" placeholder="Apri il file .json con il Blocco note, copia tutto (Ctrl+A, Ctrl+C) e incolla qui" style="font:13px \'IBM Plex Mono\',monospace;border:1px solid #cfc6b4;border-radius:6px;padding:8px 10px;width:100%"></textarea></label>' +
+      '<div class="row" style="margin-top:8px"><button class="btn pri" id="fcmsalva">Salva chiave</button><button class="btn" id="fcmprova">Notifica di prova a me</button></div></section>' +
+      '<section class="card"><h2>Telegram</h2><div id="tgadm" style="font-size:14px"><span class="empty">Caricamento…</span></div>' +
+      '<details style="margin-top:8px"><summary style="cursor:pointer;font-size:13px">Cambia token del bot</summary><p style="font-size:13px;margin:8px 0">Su Telegram apri <b>@BotFather</b> → <span class="mono">/newbot</span> → copia il <b>token</b> e incollalo qui (salvandolo Telegram si riattiva).</p>' +
+      '<div class="row"><input id="tgtoken" type="password" placeholder="123456789:AA…" style="flex:1 1 220px;min-height:42px;border:1px solid #cfc6b4;border-radius:6px;padding:8px 10px"><button class="btn" id="tgsalva">Salva token</button></div></details></section>' +
       '<section class="card"><h2>Allinea codici dal programma in uso</h2><p style="font-size:13px;margin-top:0">Copia il foglio CODICI del programma attuale in questo. Da fare <b>il giorno del passaggio</b>, quando sul vecchio programma non si inseriscono più uscite.</p><div id="codbox"></div><div class="row"><button class="btn" id="bcodA">Anteprima</button><button class="btn pri hidden" id="bcodC">Conferma allineamento</button></div></section>';
     h += '<section class="card"><h2>Prepara nuova settimana</h2><p style="font-size:13px;margin-top:0">Svuota il foglio, riporta i blocchi alla dimensione iniziale, passa al n. ' + (Number(p.numero) + 1) + ' con le date della settimana dopo e J2 = NO. Possibile solo con il programma approvato e archiviato.</p><button class="btn warn" id="bnuovaS"' + (p.approvato && !p.revInCorso ? '' : ' disabled') + '>Prepara programma n. ' + (Number(p.numero) + 1) + '</button></section></div>';
     h += '</div>';
@@ -1024,6 +1031,19 @@ function vAdmin(){
     document.querySelectorAll('[data-sbl]').forEach(function(b){ b.onclick = function(){
       api('sbloccaUtente', { username: b.dataset.sbl }).then(function(){ toast('Utente sbloccato'); vAdmin(); }).catch(function(e){ toast(e.message); });
     }; });
+    var disStato = function(st){
+      $('pushadm').innerHTML = st.configurato ? '<span class="chip ok">Attivo</span> progetto <b>' + esc(st.progetto) + '</b>' + (st.salvata ? ' · chiave salvata il ' + esc(st.salvata) : '') + ' (non visibile)' : '<span class="chip warn">Da configurare</span> incolla la chiave del server qui sotto.';
+      $('tgadm').innerHTML = st.telegram.attivo ? '<span class="chip ok">Attivo</span> @' + esc(st.telegram.bot) + ' <button class="btn small warn" id="tgoff">Spegni</button>'
+        : '<span class="chip warn">Spento</span> ' + (st.telegram.token ? 'configurazione conservata (@' + esc(st.telegram.bot) + ') <button class="btn small" id="tgon">Riattiva</button>' : 'nessun bot configurato');
+      if ($('tgoff')) $('tgoff').onclick = function(){ if (confirm('Spegnere Telegram? La configurazione resta salvata.')) api('telegramAttivo', { attivo: false }).then(function(){ api('pushStato').then(disStato); }).catch(function(e){ toast(e.message); }); };
+      if ($('tgon')) $('tgon').onclick = function(){ if (confirm('Riattivare Telegram? Chi lo ha collegato riceverà gli avvisi anche lì se non ha le notifiche dell\'app.')) api('telegramAttivo', { attivo: true }).then(function(){ api('pushStato').then(disStato); }).catch(function(e){ toast(e.message); }); };
+    };
+    api('pushStato', {}, true).then(disStato).catch(function(e){ $('pushadm').textContent = e.message; });
+    $('fcmsalva').onclick = function(){
+      var k = $('fcmkey').value.trim(); if (!k) return toast('Incolla il contenuto del file .json');
+      api('pushConfig', { chiave: k }).then(function(st){ $('fcmkey').value = ''; toast('Notifiche app attive'); if (S.sett.push) S.sett.push.configurato = true; disStato(st); }).catch(function(e){ toast(e.message); });
+    };
+    $('fcmprova').onclick = function(){ api('pushProva').then(function(r){ toast('Inviata a ' + r.dispositivi + ' dispositivo/i'); }).catch(function(e){ toast(e.message); }); };
     $('tgsalva').onclick = function(){
       var tk = $('tgtoken').value.trim(); if (!tk) return toast('Incolla il token');
       api('telegramConfig', { tokenBot: tk }).then(function(r){ toast('Bot @' + r.bot + ' attivo'); S.sett.telegram = { configurato: true, bot: r.bot, collegato: S.sett.telegram && S.sett.telegram.collegato }; vAdmin(); }).catch(function(e){ toast(e.message); });
@@ -1058,12 +1078,116 @@ function codici(conferma){
   }).catch(function(e){ toast(e.message); });
 }
 
+// ---------------- notifiche sul telefono (Firebase Cloud Messaging) ----------------
+var APP_URL = 'https://pidiroc-coder.github.io/programma-servizio/';
+function pushCfg(){ return window.PDS_CONFIG && window.PDS_CONFIG.FIREBASE && window.PDS_CONFIG.VAPID ? window.PDS_CONFIG : null; }
+function pushSupportato(){ return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+function isIos(){ return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+function standalone(){ return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; }
+function pushServer(){ return (S.sett && S.sett.push) || { configurato: false, dispositivi: [] }; }
+function pushQui(){ return !!ls('pds_push_tok') && pushSupportato() && Notification.permission === 'granted'; }
+function nomeDispositivo(){
+  var u = navigator.userAgent;
+  var sis = /android/i.test(u) ? 'Android' : (isIos() ? (/ipad/i.test(u) ? 'iPad' : 'iPhone') : (/windows/i.test(u) ? 'PC Windows' : (/mac/i.test(u) ? 'Mac' : 'PC')));
+  var br = /edg\//i.test(u) ? 'Edge' : (/samsungbrowser/i.test(u) ? 'Samsung' : (/chrome|crios/i.test(u) ? 'Chrome' : (/firefox|fxios/i.test(u) ? 'Firefox' : (/safari/i.test(u) ? 'Safari' : ''))));
+  return sis + (br ? ' · ' + br : '');
+}
+function caricaScript(src){ return new Promise(function(ok, ko){ var sc = document.createElement('script'); sc.src = src; sc.onload = ok; sc.onerror = function(){ ko(new Error('Non riesco a caricare il modulo notifiche: controlla la connessione.')); }; document.head.appendChild(sc); }); }
+function caricaFirebase(){
+  if (window.firebase && window.firebase.messaging) return Promise.resolve();
+  var v = 'https://www.gstatic.com/firebasejs/10.12.2/';
+  return caricaScript(v + 'firebase-app-compat.js').then(function(){ return caricaScript(v + 'firebase-messaging-compat.js'); })
+    .then(function(){ if (!window.firebase.apps.length) window.firebase.initializeApp(pushCfg().FIREBASE); });
+}
+// va chiamata da un clic (iPhone e Chrome lo richiedono)
+function attivaPush(){
+  if (!pushCfg()) return Promise.reject(new Error('Notifiche non configurate (config.js).'));
+  if (!pushSupportato()) return Promise.reject(new Error(isIos() && !standalone() ? 'Su iPhone prima aggiungi l\'app alla schermata Home da Safari e aprila dall\'icona (vedi i passi).' : 'Questo browser non supporta le notifiche: usa Chrome (Android/PC) o Safari con l\'app sulla Home (iPhone).'));
+  return Notification.requestPermission().then(function(perm){
+    if (perm !== 'granted') throw new Error('Notifiche non consentite. Per sbloccarle: impostazioni del browser → Notifiche → consenti per questo sito, poi riprova.');
+    return Promise.all([caricaFirebase(), navigator.serviceWorker.register('sw.js').then(function(){ return navigator.serviceWorker.ready; })]);
+  }).then(function(r){
+    return window.firebase.messaging().getToken({ vapidKey: pushCfg().VAPID, serviceWorkerRegistration: r[1] });
+  }).then(function(tok){
+    if (!tok) throw new Error('Il telefono non ha dato il codice per le notifiche: riprova.');
+    ls('pds_push_tok', tok); ls('pds_push_data', String(Date.now()));
+    return api('pushRegistra', { fcmToken: tok, dispositivo: nomeDispositivo() }, true);
+  }).then(function(m){ if (S.sett) S.sett.push = m; return m; });
+}
+function disattivaPush(){
+  var t = ls('pds_push_tok');
+  ls('pds_push_tok', null);
+  var fine = function(){ return t ? api('pushRimuovi', { fcmToken: t }) : Promise.resolve(pushServer()); };
+  return caricaFirebase().then(function(){ return window.firebase.messaging().deleteToken(); }).catch(function(){}).then(fine).then(function(m){ if (S.sett) S.sett.push = m; return m; });
+}
+// una volta al giorno rinnova il codice del telefono (può cambiare) senza chiedere nulla
+function rinnovaPush(){
+  if (!pushQui() || !pushCfg() || !pushServer().configurato) return;
+  var vecchio = Date.now() - Number(ls('pds_push_data') || 0) > 86400000;
+  if (!vecchio && pushServer().dispositivi.length) return;
+  attivaPush().catch(function(){});
+}
+function bannerPush(){
+  var ps = pushServer();
+  if (!ps.configurato || !pushCfg() || (pushQui() && ps.dispositivi.length)) return '';
+  if (Date.now() - Number(ls('pds_push_dopo') || 0) < 3 * 86400000) return '';
+  return '<div class="msg warn" id="bpushbox">🔔 <b>Attiva le notifiche su questo telefono</b>: ricevi le tue uscite e le modifiche anche con l\'app chiusa.' +
+    '<div class="row" style="margin-top:8px"><button class="btn pri small" id="bpush">Attiva notifiche</button><button class="btn small" id="bpushdopo">Più tardi</button></div></div>';
+}
+function collegaBannerPush(){
+  if ($('bpushdopo')) $('bpushdopo').onclick = function(){ ls('pds_push_dopo', String(Date.now())); var b = $('bpushbox'); if (b) b.remove(); };
+  if ($('bpush')) $('bpush').onclick = function(){
+    if (!pushSupportato() || (isIos() && !standalone())) { S.vista = 'account'; disegna(); return; }
+    attivaPush().then(function(){ toast('Notifiche attive su questo telefono'); var b = $('bpushbox'); if (b) b.remove(); })
+      .catch(function(e){ toast(e.message); S.vista = 'account'; disegna(); });
+  };
+}
+
+function pushBox(){
+  var box = $('pushbox'); if (!box) return;
+  var ps = pushServer(), cfg = pushCfg();
+  S.pushTab = S.pushTab || (isIos() ? 'ios' : 'android');
+  var passo = function(n, t){ return '<div class="row" style="gap:10px;align-items:flex-start;flex-wrap:nowrap;margin:8px 0;font-size:14px"><span style="flex:0 0 24px;height:24px;border-radius:50%;background:var(--top);color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center">' + n + '</span><div>' + t + '</div></div>'; };
+  var link = '<a href="' + APP_URL + '" target="_blank" rel="noopener"><b>' + APP_URL.replace('https://', '') + '</b></a>';
+  var h = '<h2>Notifiche sul telefono</h2>';
+  if (!ps.configurato || !cfg) h += '<div class="msg warn">L\'amministratore non ha ancora attivato le notifiche dell\'app. Fino ad allora gli avvisi arrivano per email e li trovi in «Notifiche».</div>';
+  h += '<h3 style="font-size:15px;margin:10px 0 4px">1 · Installa l\'app sul telefono</h3>' +
+    '<div class="days" style="margin:6px 0"><button data-pt="android" class="' + (S.pushTab === 'android' ? 'on' : '') + '">Android</button><button data-pt="ios" class="' + (S.pushTab === 'ios' ? 'on' : '') + '">iPhone</button></div>';
+  if (S.pushTab === 'android') h += passo(1, 'Apri ' + link + ' con <b>Chrome</b>') + passo(2, 'Menu <b>⋮</b> in alto a destra → <b>Installa app</b> (oppure «Aggiungi a schermata Home»)') + passo(3, 'Apri l\'app dall\'icona <b>Programma</b> sulla schermata Home ed entra con il tuo utente');
+  else h += passo(1, 'Apri ' + link + ' con <b>Safari</b> (non Chrome)') + passo(2, 'Tasto <b>Condividi</b> (quadrato con la freccia ↑) → <b>Aggiungi alla schermata Home</b> → Aggiungi') + passo(3, 'Chiudi Safari e apri l\'app dall\'icona <b>Programma</b>, poi entra con il tuo utente') +
+    '<p class="hint" style="margin:4px 0 0">Serve iOS 16.4 o successivo (Impostazioni → Generali → Info). Su iPhone le notifiche non hanno tasti: toccala e si apre l\'app.</p>';
+  h += '<div class="row" style="margin-top:6px"><span id="pushqr" style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px;line-height:0"></span><span class="hint">Se sei al PC: inquadra il QR con la fotocamera del telefono.</span></div>';
+  h += '<h3 style="font-size:15px;margin:16px 0 6px">2 · Consenti le notifiche</h3>';
+  if (pushQui() && ps.dispositivi.length) h += '<p style="margin:0 0 8px"><span class="chip ok">Attive su questo dispositivo</span></p><div class="row"><button class="btn small" id="pprova">Invia notifica di prova</button><button class="btn small err" id="pstop">Disattiva su questo dispositivo</button></div>';
+  else if (isIos() && !standalone()) h += '<div class="msg warn" style="margin:0">Su iPhone il tasto compare solo aprendo l\'app dall\'icona sulla schermata Home (passi qui sopra).</div>';
+  else h += '<p style="margin:0 0 8px;font-size:14px">Premi il tasto e scegli <b>«Consenti»</b>.</p><button class="btn pri" id="pattiva" style="width:100%"' + (ps.configurato && cfg ? '' : ' disabled') + '>🔔 Attiva notifiche su questo dispositivo</button>';
+  if (ps.dispositivi.length) h += '<p class="hint" style="margin:10px 0 0">Attive su: ' + esc(ps.dispositivi.join(', ')) + '</p>';
+  box.innerHTML = h;
+  caricaQr().then(function(){ if (!window.qrcode || !$('pushqr')) return; var q = window.qrcode(0, 'M'); q.addData(APP_URL); q.make(); $('pushqr').innerHTML = q.createSvgTag({ cellSize: 3, margin: 2 }); }).catch(function(){ if ($('pushqr')) $('pushqr').remove(); });
+  box.querySelectorAll('[data-pt]').forEach(function(b){ b.onclick = function(){ S.pushTab = b.dataset.pt; pushBox(); }; });
+  if ($('pattiva')) $('pattiva').onclick = function(){ attivaPush().then(function(){ toast('Notifiche attive su questo dispositivo'); pushBox(); }).catch(function(e){ toast(e.message); }); };
+  if ($('pprova')) $('pprova').onclick = function(){ api('pushProva').then(function(r){ toast('Inviata a ' + r.dispositivi + ' dispositivo/i: arriva in pochi secondi'); }).catch(function(e){ toast(e.message); }); };
+  if ($('pstop')) $('pstop').onclick = function(){ if (confirm('Non riceverai più notifiche su questo dispositivo. Continuare?')) disattivaPush().then(function(){ toast('Notifiche disattivate'); pushBox(); }).catch(function(e){ toast(e.message); }); };
+}
+
+// apertura dalla notifica: #notifiche, #avvisi, #approva-46
+function leggiHash(){
+  var h = location.hash || '';
+  if (!h) return;
+  var m = h.match(/^#approva-(\d+)/);
+  if (h === '#notifiche') S.vista = 'notifiche';
+  else if (h === '#avvisi' && isDir()) S.vista = 'avvisi';
+  else if (m && isDir()) { S.vista = 'approva'; S.approvaNum = Number(m[1]); }
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+}
+window.addEventListener('hashchange', function(){ if (!S.token || !S.sett || !location.hash) return; leggiHash(); S.ed = null; S.arch = null; disegna(); });
+
 // ---------------- account ----------------
 function vAccount(){
   document.querySelectorAll('nav.menu button').forEach(function(b){ b.classList.remove('on'); });
   $('main').innerHTML = '<div class="eyebrow">Account</div><h1>' + esc(S.utente.nome || S.utente.username) + '</h1>' +
     '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start">' +
-    '<section class="card" id="tgbox"><h2>Notifiche Telegram</h2><div class="empty">Caricamento…</div></section>' +
+    '<section class="card" id="pushbox"></section>' + (pushServer().telegram ? '<section class="card" id="tgbox"><h2>Notifiche Telegram</h2><div class="empty">Caricamento…</div></section>' : '') +
     '<form class="card grid" id="fpw"><h2>Cambia password</h2><label class="f">Password attuale<input type="password" name="a" autocomplete="current-password" required></label>' +
     '<label class="f">Nuova password (almeno 8 caratteri)<input type="password" name="n" autocomplete="new-password" minlength="8" required></label>' +
     '<label class="f">Ripeti nuova password<input type="password" name="r" autocomplete="new-password" minlength="8" required></label><button class="btn pri">Salva</button></form></div>';
@@ -1072,7 +1196,8 @@ function vAccount(){
     if (f.n.value !== f.r.value) return toast('Le due password non coincidono');
     api('cambiaPassword', { vecchia: f.a.value, nuova: f.n.value }).then(function(){ toast('Password cambiata'); f.reset(); }).catch(function(er){ toast(er.message); });
   };
-  tgBox();
+  pushBox();
+  if ($('tgbox')) tgBox();
 }
 
 function caricaQr(){
