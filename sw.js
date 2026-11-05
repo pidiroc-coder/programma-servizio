@@ -1,6 +1,6 @@
 // Service worker: tiene in cache solo l'app (i dati arrivano sempre dal server) e mostra le notifiche
 importScripts('config.js');
-var CACHE = 'pds-v5';
+var CACHE = 'pds-v6';
 var FILES = ['./', 'index.html', 'config.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'comuni.json'];
 self.addEventListener('install', function (e) { e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); })); self.skipWaiting(); });
 self.addEventListener('activate', function (e) {
@@ -30,6 +30,9 @@ self.addEventListener('push', function (e) {
   var lavori = [self.registration.showNotification(d.titolo || 'Programma di Servizio', {
     body: d.testo || '', icon: 'icon-192.png', badge: 'icon-192.png', tag: tag, renotify: true,
     requireInteraction: azioni.length > 0, actions: azioni, data: d, lang: 'it' })];
+  // numero sull'icona dell'app e aggiornamento dei pallini se l'app è aperta
+  if (d.n !== undefined && self.navigator && self.navigator.setAppBadge) lavori.push((Number(d.n) ? self.navigator.setAppBadge(Number(d.n)) : self.navigator.clearAppBadge()).catch(function () {}));
+  lavori.push(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (l) { l.forEach(function (c) { c.postMessage({ tipo: 'push' }); }); }));
   // conferma di consegna al server (colonna "Arrivata")
   if (d.riga && d.firma) lavori.push(chiamaApi({ azione: 'pushAzione', az: 'ric', riga: d.riga, u: d.u, firma: d.firma }).catch(function () {}));
   e.waitUntil(Promise.all(lavori));
@@ -49,6 +52,7 @@ function apriApp(link) {
 self.addEventListener('notificationclick', function (e) {
   var d = e.notification.data || {}, az = e.action;
   e.notification.close();
+  if (az === 'an') { e.waitUntil(apriApp('#notifiche')); return; }   // Annullata/rinviata: serve il motivo, si apre l'app
   if (az) {   // tasto premuto nella notifica (Android): Accetto / Assente / Approva / Rifiuta
     e.waitUntil(chiamaApi({ azione: 'pushAzione', az: az, u: d.u, firma: d.firma, riga: d.riga, numero: d.numero, id: d.id }).then(function (j) {
       return self.registration.showNotification(j.ok ? '✔ Fatto' : '⚠️ Non riuscito', {
