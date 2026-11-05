@@ -78,6 +78,10 @@ tr.r-del td.act{text-decoration:none}
 tr.r-bozza td{background:repeating-linear-gradient(-45deg,#fffaf0,#fffaf0 8px,#fdf3df 8px,#fdf3df 16px);color:#57534e}
 td.act{white-space:nowrap;text-align:right}
 .empty{color:var(--dim);font-size:13px;padding:6px 2px}
+.badge{display:inline-block;min-width:18px;background:#b3261e;color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:1px 6px;margin-left:5px;line-height:16px;text-align:center}
+.notif{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line)}.notif .t{flex:1;min-width:0}.notif pre{white-space:pre-wrap;font-family:inherit;font-size:13.5px;margin:6px 0 0;color:var(--ink)}
+.notif .az{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+@media (max-width:720px){.notif{flex-wrap:wrap}.notif .az{flex-direction:row;width:100%}}
 .tw{overflow-x:auto}
 /* editor */
 .editor{border:2px solid var(--accent);background:#fffaf0}
@@ -126,7 +130,7 @@ ul.clean{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;g
 var API = (window.PDS_CONFIG && window.PDS_CONFIG.API_URL) || '';
 var S = { token: null, utente: null, liste: null, sett: null, vista: 'compila', giorno: null, ed: null, msg: null };
 var GIORNI = { LUN: 'Lunedì', MAR: 'Martedì', MER: 'Mercoledì', GIO: 'Giovedì', VEN: 'Venerdì', SAB: 'Sabato' };
-var CAMPI = ['uoc','auto','loc','guida','aff','art','eq','cdc','p','r','mat','n'];
+var CAMPI = ['uoc','auto','loc','guida','aff','art','eq','cdc','p','r','mat','n','tipo'];
 
 function $(id){ return document.getElementById(id); }
 function esc(t){ return String(t == null ? '' : t).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -235,6 +239,7 @@ function caricaTutto(){
     S.vista = ls('pds_vista') || 'compila';
     if ((S.vista === 'approva' || S.vista === 'avvisi') && !isDir()) S.vista = 'dash';
     if (S.vista === 'admin' && !isAdmin()) S.vista = 'dash';
+    if (S.vista === 'archvista') S.vista = 'archivio';
     if (ruolo() === 'TUTTI' && S.vista === 'compila') S.vista = 'dash';
     if (!ls('pds_vista') && ruolo() === 'TUTTI') S.vista = 'dash';
     disegna();
@@ -260,34 +265,107 @@ function scrivi(azione, dati, silenzioso){
     return r;
   });
 }
-function apriArchivio(n){
-  api('archivioApri', { numero: n }).then(function(d){ S.arch = d; S.ed = null; S.giorno = 'TUTTI'; S.vista = 'archvista'; S.msg = null; disegna(); window.scrollTo(0, 0); }).catch(function(e){ toast(e.message); });
+function apriArchivio(n, dopo){
+  api('archivioApri', { numero: n }).then(function(d){ S.arch = d; S.ed = null; S.giorno = 'TUTTI'; S.vista = 'archvista'; S.msg = null; disegna(); window.scrollTo(0, 0); if (dopo) dopo(); }).catch(function(e){ toast(e.message); });
+}
+
+// "+ Uscita fuori programma" da Le mie uscite: si sceglie il programma approvato ancora modificabile
+function nuovaFuori(){
+  api('archivio').then(function(a){
+    var mod = a.filter(function(x){ return x.modificabile; });
+    if (!mod.length) return toast('Nessun programma approvato modificabile (si può aggiungere fino al sabato della sua settimana).');
+    var apri = function(n){ apriArchivio(n, function(){ apriEditor({ giorno: primoGiorno(), sede: sedeUtente(), dati: {} }); }); };
+    if (mod.length === 1) return apri(Number(mod[0].numero));
+    var d = document.createElement('div'); d.className = 'spin';
+    d.innerHTML = '<div class="card" style="max-width:460px;width:calc(100% - 32px);color:var(--ink);font-weight:400"><h2>A quale programma aggiungi l\'uscita?</h2><ul class="clean">' +
+      mod.map(function(x){ return '<li><button class="btn" style="width:100%;justify-content:flex-start" data-np="' + esc(x.numero) + '">Programma n. ' + esc(x.numero) + ' · ' + esc(x.settimana) + '</button></li>'; }).join('') +
+      '</ul><div class="row" style="margin-top:12px"><button class="btn" id="npchiudi">Annulla</button></div></div>';
+    document.body.appendChild(d);
+    $('npchiudi').onclick = function(){ d.remove(); };
+    d.querySelectorAll('[data-np]').forEach(function(b){ b.onclick = function(){ d.remove(); apri(Number(b.dataset.np)); }; });
+  }).catch(function(e){ toast(e.message); });
+}
+
+// ---------------- tipo di intervento e verbali ----------------
+function tipiDi(mat){ return ((S.liste && S.liste.tipi) || []).filter(function(t){ return t.mat === mat; }); }
+function codiciVerb(t){ return String(t || '').split(';').map(function(x){ return x.trim(); }).filter(String); }
+function verbStd(c){ return /^(M\d+\.\d+-\d|N\.\d)/i.test(c); }   // codice modulo; altrimenti "usare verbale specifico"
+// piano di stampa: verbali × numero campioni + allegati × 1
+function pianoVerbali(mat, tipo, n){
+  var t = tipiDi(mat).filter(function(x){ return x.tipo === tipo; })[0];
+  if (!t) return null;
+  var ver = codiciVerb(t.verbali), all = codiciVerb(t.allegati);
+  return { n: Number(n) > 0 ? Number(n) : 1, verbali: ver.filter(verbStd), allegati: all.filter(verbStd), specifico: ver.some(function(c){ return !verbStd(c); }) };
+}
+function tastoVerbali(mat, tipo, n, piccolo){
+  if (!tipo || !(Number(n) > 0)) return '';
+  var pv = pianoVerbali(mat, tipo, n); if (!pv) return '';
+  var sm = piccolo ? ' small' : '';
+  var dati = ' data-vmat="' + esc(mat) + '" data-vtipo="' + esc(tipo) + '" data-vn="' + esc(n) + '"';
+  var corto = function(c){ return c.replace(/_REV.*$/i, ''); };
+  if (!pv.verbali.length && !pv.allegati.length) return '<button class="btn' + sm + '" disabled title="Per questo intervento si usa un verbale specifico">USARE VERBALE SPECIFICO</button>';
+  if (!pv.verbali.length) return '<button class="btn pri' + sm + '"' + dati + '>⬇ Scarica allegato ' + esc(pv.allegati.map(corto).join(' + ')) + '</button>' + (piccolo ? '' : ' <span class="hint">Verbale: usare verbale specifico</span>');
+  var lab = pv.verbali.map(function(c){ return pv.n + '× ' + corto(c); }).concat(pv.allegati.map(function(c){ return '1× ' + corto(c); })).join(' + ');
+  return '<button class="btn pri' + sm + '"' + dati + ' title="' + esc(lab) + '">⬇ ' + (piccolo ? 'Verbali' : 'Scarica verbali (' + esc(lab) + ')') + '</button>';
+}
+function collegaVerbali(){ document.querySelectorAll('[data-vtipo]').forEach(function(b){ b.onclick = function(){ scaricaVerbali(b.dataset.vmat, b.dataset.vtipo, b.dataset.vn); }; }); }
+var PDFLIB = null, VERB_CACHE = {};
+function caricaPdfLib(){
+  if (window.PDFLib) return Promise.resolve();
+  return new Promise(function(ok, ko){ var sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js'; sc.onload = ok; sc.onerror = function(){ ko(new Error('Non riesco a caricare il modulo PDF: controlla la connessione.')); }; document.head.appendChild(sc); });
+}
+function b64(x){ var bin = atob(x), arr = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return arr; }
+function scaricaVerbali(mat, tipo, n){
+  var pv = pianoVerbali(mat, tipo, n); if (!pv) return;
+  var tutti = pv.verbali.concat(pv.allegati);
+  var mancano = tutti.filter(function(c){ return !VERB_CACHE[c]; });
+  spin(true);
+  Promise.all([caricaPdfLib(), mancano.length ? api('verbali', { codici: mancano }, true) : Promise.resolve([])]).then(function(r){
+    r[1].forEach(function(f){ VERB_CACHE[f.codice] = b64(f.base64); });
+    var P = window.PDFLib;
+    return P.PDFDocument.create().then(function(out){
+      var seq = [];
+      pv.verbali.forEach(function(c){ for (var i = 0; i < pv.n; i++) seq.push(c); });
+      pv.allegati.forEach(function(c){ seq.push(c); });
+      var docs = {};
+      return tutti.reduce(function(pr, c){ return pr.then(function(){ return P.PDFDocument.load(VERB_CACHE[c], { ignoreEncryption: true }).then(function(d){ docs[c] = d; }); }); }, Promise.resolve())
+        .then(function(){ return seq.reduce(function(pr, c){ return pr.then(function(){ return out.copyPages(docs[c], docs[c].getPageIndices()).then(function(pp){ pp.forEach(function(pg){ out.addPage(pg); }); }); }); }, Promise.resolve()); })
+        .then(function(){ return out.save(); });
+    });
+  }).then(function(bytes){
+    var url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    var a = document.createElement('a'); a.href = url; a.download = 'Verbali ' + tipo.replace(/[\\/:*?"<>|]/g, '') + ' (' + pv.n + ' campioni).pdf'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+    toast('PDF pronto: stampalo e compilalo a mano');
+  }).catch(function(e){ toast(e.message); }).finally(function(){ spin(false); });
 }
 
 // ---------------- telaio ----------------
 function disegna(){
-  var voci = ruolo() === 'TUTTI' ? [['dash','Le mie uscite'],['archivio','Archivio']] : [['dash','Dashboard'],['compila','In compilazione'],['archivio','Archivio']];
-  if (isDir()) { voci.splice(2, 0, ['approva','Approvazione']); voci.push(['avvisi','Avvisi']); }
+  var voci = ruolo() === 'TUTTI' ? [['dash','Le mie uscite'],['notifiche','Notifiche'],['archivio','Archivio']] : [['dash','Dashboard'],['compila','In compilazione'],['notifiche','Notifiche'],['archivio','Archivio']];
+  if (isDir()) { voci.splice(3, 0, ['approva','Approvazione']); voci.push(['avvisi','Avvisi']); }
   if (isAdmin()) voci.push(['admin','Amministrazione']);
   var u = S.utente;
   $('app').innerHTML =
     '<header class="top"><div class="in"><div class="brand">PdS<span>·</span>ARPA Molise</div><nav class="menu" aria-label="Menu principale">' +
-    voci.map(function(v){ return '<button data-v="' + v[0] + '" class="' + (S.vista === v[0] || (S.vista === 'archvista' && v[0] === 'archivio') ? 'on' : '') + '">' + v[1] + '</button>'; }).join('') +
+    voci.map(function(v){ return '<button data-v="' + v[0] + '" class="' + (S.vista === v[0] || (S.vista === 'archvista' && v[0] === 'archivio') ? 'on' : '') + '">' + v[1] + (v[0] === 'notifiche' ? '<span class="badge" id="nbadge"' + (S.sett && S.sett.notifiche ? '' : ' style="display:none"') + '>' + (S.sett && S.sett.notifiche || '') + '</span>' : '') + '</button>'; }).join('') +
     '</nav><div class="who"><span>' + esc(u.nome || u.username) + ' · ' + esc(u.ruolo.toLowerCase()) + '</span><button id="bacc">Account</button><button id="besc">Esci</button></div></div></header><main id="main"></main>';
   document.querySelectorAll('nav.menu button').forEach(function(b){ b.onclick = function(){
     if (S.ed && Object.keys(S.ed.dati || {}).some(function(k){ var v = S.ed.dati[k]; return k.charAt(0) !== '_' && v; }) && !confirm('L\'uscita aperta non è salvata. Chiuderla?')) return;
     S.vista = b.dataset.v; ls('pds_vista', S.vista); S.msg = null; S.ed = null; S.arch = null;
     disegna();   // la scheda si apre subito con i dati già caricati
     api('settimana', {}, true).then(function(d){   // e si aggiorna in sottofondo
-      S.sett = d;
+      S.sett = d; aggiornaBadge();
       if (S.vista === 'compila' && !S.ed && !S.arch) vCompila();
     }).catch(function(e){ toast(e.message); });
   }; });
   $('besc').onclick = function(){ esci(); };
   $('bacc').onclick = function(){ S.vista = 'account'; disegna(); };
   if (S.vista !== 'archvista') S.arch = null;
-  ({ dash: vDash, avvisi: vAvvisi, compila: vCompila, archvista: vCompila, approva: function(){ vApprova(); }, archivio: vArchivio, admin: vAdmin, account: vAccount }[S.vista] || vCompila)();
+  ({ dash: vDash, notifiche: vNotifiche, avvisi: vAvvisi, compila: vCompila, archvista: vCompila, approva: function(){ vApprova(); }, archivio: vArchivio, admin: vAdmin, account: vAccount }[S.vista] || vCompila)();
 }
+
+function aggiornaBadge(){ var b = $('nbadge'); if (!b || !S.sett) return; var n = S.sett.notifiche || 0; b.textContent = n || ''; b.style.display = n ? '' : 'none'; }
 
 function intestazione(sotto){
   var p = F().programma;
@@ -304,9 +382,11 @@ function vCompila(){
   if (!S.giorno) S.giorno = 'TUTTI';
   var h = intestazione(p.archivio ? 'Programma approvato' : 'Settimana in compilazione');
   if (p.archivio) h += '<div class="row" style="margin:-4px 0 14px"><button class="btn small" id="barch">← Torna all\'archivio</button>' +
-    (p.modificabile ? '<span style="font-size:13px;color:var(--dim)">Ogni modifica crea la <b>Rev.' + (p.revApprovata + 1) + '</b>: il dirigente la approva da "Approvazione", poi partono il nuovo PDF e le notifiche.</span>'
+    (p.modificabile ? '<span style="font-size:13px;color:var(--dim)">Le <b>uscite fuori programma</b> sono valide subito (codici assegnati, equipaggio avvisato) e il dirigente le approva su Telegram. Modifiche e annullamenti formano la <b>Rev.' + (p.revApprovata + 1) + '</b> da approvare in "Approvazione".</span>'
       : '<span class="chip warn">Settimana finita: solo consultazione</span>') + '</div>';
-  if (puoModificare()) {
+  if (p.archivio && p.modificabile) {
+    h += '<div class="row" style="margin-bottom:14px"><button class="btn pri" id="bnuova">+ Uscita fuori programma</button></div>';
+  } else if (puoModificare() && !p.archivio) {
     h += '<div class="row" style="margin-bottom:14px"><button class="btn pri" id="bnuova">+ Nuova uscita</button>' +
       (p.approvato && !p.archivio ? '<span style="font-size:13px;color:var(--dim)">Il programma è approvato: ogni modifica crea la revisione da far approvare al dirigente.</span>' : '') + '</div>';
   }
@@ -345,6 +425,7 @@ function vCompila(){
   document.querySelectorAll('[data-sblocca]').forEach(function(b){ b.onclick = function(){ sblocca(Number(b.dataset.sblocca)); }; });
   document.querySelectorAll('[data-modifica]').forEach(function(b){ b.onclick = function(){ modificaRiga(Number(b.dataset.modifica)); }; });
   document.querySelectorAll('[data-elimina]').forEach(function(b){ b.onclick = function(){ eliminaRiga(Number(b.dataset.elimina)); }; });
+  collegaVerbali();
   if (S.ed) disegnaEditor();
 }
 
@@ -371,6 +452,7 @@ function rigaHtml(r, giorno, sede){
   else if (r.mancanti && r.mancanti.length) chip = '<span class="chip err" title="Mancano: ' + esc(r.mancanti.join(', ')) + '">Da completare</span>';
   else chip = '<span class="chip warn" title="Completa ma non ancora salvata dall\'app">Da salvare</span>';
   if (r.rev && r.modifica && r.stato !== 'Annullata') chip += ' <span class="chip ' + (r.modifica === 'AGGIUNTA' ? 'add' : 'mod') + '">Rev.' + r.rev + '</span>';
+  if (r.fuori) chip += ' <span class="chip warn">Fuori programma</span>';
   var prec = r.precedenti || {};
   function cel(k, v){ var vv = v === undefined ? r[k] : v; if (k === 'cod') vv = String(vv || '').replace(/-/g, '\u2011'); var cambiato = r.modifica === 'MODIFICATA' && prec[k] !== undefined && String(prec[k]) !== String(r[k]); return esc(vv) + (cambiato ? '<div style="font-size:11.5px;color:#7a6400"><s>' + esc(prec[k] || '—') + '</s></div>' : ''); }
   var az = '';
@@ -381,8 +463,8 @@ function rigaHtml(r, giorno, sede){
   }
   return '<tr class="' + cls + '"><td>' + chip + '</td><td data-l="UOC">' + cel('uoc') + '</td><td data-l="Auto">' + cel('auto') + '</td><td data-l="Località"><b>' + cel('loc') + '</b></td>' +
     '<td data-l="Guida">' + cel('guida') + '</td><td data-l="Affidatario">' + cel('aff') + '</td><td data-l="Equipaggio">' + cel('eq') + '</td><td data-l="CdC">' + cel('cdc') + '</td>' +
-    '<td data-l="Orari" class="mono">' + esc(r.p) + (r.r ? '–' + esc(r.r) : '') + '</td><td data-l="Matrice">' + cel('mat') + '</td><td data-l="N." class="mono">' + cel('n') + '</td>' +
-    '<td data-l="Codici" class="mono" style="font-size:12px;font-weight:700">' + cel('cod') + '</td><td data-l="Salvata da" style="font-size:12px;color:var(--dim)">' + esc(r.chi) + (r.quando ? '<br>' + esc(r.quando) : '') + '</td><td class="act">' + az + '</td></tr>';
+    '<td data-l="Orari" class="mono">' + esc(r.p) + (r.r ? '–' + esc(r.r) : '') + '</td><td data-l="Matrice">' + cel('mat') + (r.tipo ? '<div class="hint">' + esc(r.tipo) + '</div>' : '') + '</td><td data-l="N." class="mono">' + cel('n') + '</td>' +
+    '<td data-l="Codici" class="mono" style="font-size:12px;font-weight:700">' + cel('cod') + '</td><td data-l="Salvata da" style="font-size:12px;color:var(--dim)">' + esc(r.chi) + (r.quando ? '<br>' + esc(r.quando) : '') + '</td><td class="act">' + az + (r.stato !== 'Annullata' ? tastoVerbali(r.mat, r.tipo, r.n, true) : '') + '</td></tr>';
 }
 
 function dataIt(t){ var m = String(t || '').match(/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/); if (!m) return Date.now(); var d = new Date(); var x = new Date(d.getFullYear(), Number(m[2]) - 1, Number(m[1]), Number(m[3]), Number(m[4])); if (x > d) x.setFullYear(d.getFullYear() - 1); return x.getTime(); }
@@ -408,7 +490,7 @@ function sblocca(n){
 function modificaRiga(n){
   var t = trovaRiga(n); if (!t) return;
   var d = {}; CAMPI.forEach(function(k){ d[k] = t.r[k]; });
-  apriEditor({ riga: n, giorno: t.giorno, sede: t.sede, dati: d, codici: t.r.cod });
+  apriEditor({ riga: n, giorno: t.giorno, sede: t.sede, dati: d, codici: t.r.cod, nOrig: t.r.n, matOrig: t.r.mat, uocOrig: t.r.uoc });
 }
 
 function eliminaRiga(n){
@@ -525,7 +607,7 @@ var NOMI = { uoc: 'UOC', auto: 'Auto', loc: 'Località', n: 'Numero campioni (nu
 function disegnaEditor(){
   var ed = S.ed, d = ed.dati, L = S.liste;
   var p = F().programma;
-  var titolo = ed.riga ? 'Modifica uscita' : (ed.bozzaId ? 'Bozza' : 'Nuova uscita');
+  var titolo = ed.riga ? 'Modifica uscita' : (ed.bozzaId ? 'Bozza' : (S.arch ? 'Uscita fuori programma' : 'Nuova uscita'));
   var mat = L.matrici[d.mat];
   var nNo = String(d.n || '').toUpperCase() === 'NO';
   var m = mancanti(d);
@@ -533,7 +615,7 @@ function disegnaEditor(){
   var giorniOpz = F().giorni.map(function(g){ return { v: g.key, t: g.label }; });
   var bloccaPos = !!(ed.riga && p.approvato);
   var h = '<section class="card editor" style="margin-bottom:18px"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">' + titolo + '</h2>' +
-    '<span style="font-size:12px;color:var(--dim)">' + (S.arch ? 'Modifica del programma n. ' + esc(p.numero) + ' approvato: diventa parte della Rev.' + (p.revApprovata + 1) + '.' : 'La riga va nel foglio solo con "Salva riga". Fino ad allora resta una bozza visibile solo nell\'app.') + '</span></div>' +
+    '<span style="font-size:12px;color:var(--dim)">' + (S.arch ? (ed.riga ? 'Modifica del programma n. ' + esc(p.numero) + ' approvato: diventa parte della Rev.' + (p.revApprovata + 1) + '.' : 'Programma n. ' + esc(p.numero) + ' approvato: l\'uscita vale subito (codici e notifiche all\'equipaggio); il dirigente la approva su Telegram nella Rev.' + (p.revApprovata + 1) + '.') : 'La riga va nel foglio solo con "Salva riga". Fino ad allora resta una bozza visibile solo nell\'app.') + '</span></div>' +
     (ed.errore ? '<div class="msg err">' + esc(ed.errore) + '</div>' : '') +
     '<div class="fields">' +
     f('giorno', 'Giorno', '<select id="e_giorno"' + (bloccaPos ? ' disabled' : '') + '>' + opz(giorniOpz, ed.giorno, false) + '</select>') +
@@ -552,11 +634,14 @@ function disegnaEditor(){
       '<span class="hint">Solo le persone scelte dall\'elenco ricevono le notifiche.</span>', 'riga') +
     f('nota', '<span>Note <span class="hint" id="e_notanum">(' + (d._eqNote || '').length + '/' + MAX_NOTE + ' caratteri)</span></span>', '<input id="e_nota" maxlength="' + MAX_NOTE + '" placeholder="Facoltative, brevi: es. CC FOR IS, ASREM, PFAS-ANPA" value="' + esc(d._eqNote) + '">', 'riga') +
     f('mat', 'Matrice', '<select data-k="mat"' + (nNo ? ' disabled' : '') + '>' + opz(Object.keys(L.matrici), d.mat) + '</select>') +
+    f('tipo', 'Tipo di intervento', '<select data-k="tipo"' + (nNo || !d.mat ? ' disabled' : '') + '>' + opz(tipiDi(d.mat).map(function(t){ return t.tipo; }), d.tipo) + '</select>' +
+      (d.mat && !tipiDi(d.mat).length ? '<span class="hint">Nessun tipo per questa matrice nel foglio TIPO DI INTERVENTO.</span>' : ''), 'wide') +
     f('n', 'Numero campioni *', '<input data-k="n" type="number" min="1" step="1" inputmode="numeric" value="' + (nNo ? '' : esc(d.n)) + '"' + (nNo ? ' disabled' : '') + '><span class="nobox"><input type="checkbox" id="e_no"' + (nNo ? ' checked' : '') + '> Nessun campione (NO)</span>') +
     '</div>' +
     '<datalist id="dl_pers">' + L.personale.map(function(x){ return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
     (mat ? '<div style="font-size:12.5px;color:var(--dim);margin-top:8px">' + esc(mat.nome) + ': giorni ' + esc(mat.giorni.join(', ')) + (mat.maxGiorno ? ' · max ' + mat.maxGiorno + (mat.perImpianti ? ' impianti' : '') + '/giorno' : '') + (mat.maxSettimana ? ' · max ' + mat.maxSettimana + '/settimana' + (mat.gruppo ? ' (' + esc(mat.gruppo) + ')' : '') : '') + (mat.oraLimite ? ' · ' + esc(mat.oraLimite) : '') + '</div>' : '') +
-    (ed.codici ? '<div style="font-size:12.5px;margin-top:6px">Codici attuali: <span class="mono">' + esc(ed.codici) + '</span> (restano se non cambi UOC, matrice e numero)</div>' : '') +
+    (ed.codici ? '<div style="font-size:12.5px;margin-top:6px">Codici attuali: <b class="mono">' + esc(ed.codici) + '</b>. Se aumenti i campioni si aggiunge il codice successivo (se è ancora libero, altrimenti si rigenerano tutti); se li diminuisci gli ultimi codici risultano persi.</div>' : '') +
+    (d.tipo && Number(d.n) > 0 ? '<div class="row" style="margin-top:8px">' + tastoVerbali(d.mat, d.tipo, d.n) + '</div>' : '') +
     '<div id="e_manc" style="font-size:13px;margin-top:10px;color:' + (m.length ? 'var(--err)' : 'var(--ok)') + '">' + (m.length ? 'Da completare: ' + m.map(function(k){ return NOMI[k]; }).join(', ') : 'Riga completa: si può salvare.') + '</div>' +
     '<div class="row" style="margin-top:12px"><button class="btn pri" id="e_salva">Salva riga</button>' +
     (!ed.riga && !S.arch ? '<button class="btn" id="e_bozza">Salva bozza</button>' : '') +
@@ -566,14 +651,15 @@ function disegnaEditor(){
   $('edbox').innerHTML = h;
   document.querySelectorAll('#edbox [data-k]').forEach(function(el){
     var ev = el.tagName === 'SELECT' ? 'change' : 'input';
-    el.addEventListener(ev, function(){ d[el.dataset.k] = el.value; if (el.dataset.k === 'mat' || el.tagName === 'SELECT') disegnaEditor(); else aggiornaMancanti(); });
+    el.addEventListener(ev, function(){ d[el.dataset.k] = el.value; if (el.dataset.k === 'mat' && tipiDi(d.mat).every(function(t){ return t.tipo !== d.tipo; })) d.tipo = ''; if (el.dataset.k === 'mat' || el.tagName === 'SELECT') disegnaEditor(); else aggiornaMancanti(); });
   });
   collegaChips('e_tappe', d._tappe, function(){ return COMUNI || []; }, true);
   collegaChips('e_eq', d._eq, function(){ return S.liste.personale; }, false);
   $('e_nota').oninput = function(){ d._eqNote = this.value.trim(); $('e_notanum').textContent = '(' + this.value.length + '/' + MAX_NOTE + ' caratteri)'; componi(d); };
   $('e_giorno').onchange = function(){ ed.giorno = this.value; };
   $('e_sede').onchange = function(){ ed.sede = this.value; };
-  $('e_no').onchange = function(){ if (this.checked) { d.n = 'NO'; d.mat = ''; } else d.n = ''; disegnaEditor(); };
+  $('e_no').onchange = function(){ if (this.checked) { d.n = 'NO'; d.mat = ''; d.tipo = ''; } else d.n = ''; disegnaEditor(); };
+  collegaVerbali();
   $('e_salva').onclick = salvaRiga;
   if ($('e_bozza')) $('e_bozza').onclick = salvaBozza;
   $('e_svuota').onclick = function(){ if (!confirm('Svuotare tutti i campi?')) return; ed.dati = {}; preparaChips(ed.dati); ed.provato = false; ed.errore = null; disegnaEditor(); };
@@ -594,9 +680,15 @@ function salvaRiga(){
   var m = mancanti(ed.dati);
   if (m.length) { ed.errore = 'Mancano: ' + m.map(function(k){ return NOMI[k]; }).join(', ') + '.'; return disegnaEditor(); }
   var payload = { giorno: ed.giorno, sede: ed.sede, riga: ed.riga || 0, bozzaId: ed.bozzaId || '', dati: ed.dati };
+  var nN = String(ed.dati.n || ''), nO = String(ed.nOrig || '');
+  if (ed.riga && ed.codici && nO && nN !== nO && ed.dati.mat === ed.matOrig && ed.dati.uoc === ed.uocOrig) {
+    var piu = Number(nN) > Number(nO);
+    if (!confirm('I campioni passano da ' + nO + ' a ' + (nN || '0') + ': i codici cambiano.\n' + (piu ? 'Si aggiunge il codice successivo se è ancora libero; altrimenti si rigenerano tutti e quelli attuali risultano persi.' : 'Gli ultimi codici di ' + ed.codici + ' risultano persi.') + '\n\nContinuare?')) return;
+  }
+  var azione = S.arch ? (ed.riga ? 'archivioSalva' : 'fuoriProgramma') : 'salvaRiga';
   var attesa = S.sblocco || Promise.resolve();
-  attesa.then(function(){ S.sblocco = null; return scrivi(S.arch ? 'archivioSalva' : 'salvaRiga', payload); }).then(function(r){
-    var t = 'Riga salvata' + (r.codici ? ' · codici ' + r.codici : '');
+  attesa.then(function(){ S.sblocco = null; return scrivi(azione, payload); }).then(function(r){
+    var t = (r.fuori ? 'Uscita fuori programma salvata: è già valida, equipaggio e dirigente avvisati' : 'Riga salvata') + (r.codici ? ' · codici ' + r.codici : '') + (r.persi ? ' · codici persi: ' + r.persi : '');
     if (r.avvisi && r.avvisi.length) t += ' · ATTENZIONE (admin): ' + r.avvisi.join(' ');
     toast(t);
     var nuovo = !ed.riga;
@@ -617,14 +709,14 @@ function salvaBozza(){
 
 // ---------------- dashboard ----------------
 function rigaUscita(r){
-  return '<tr class="' + (r.fatta ? '' : '') + '"><td data-l="Data" class="mono"><b>' + esc(r.data) + '</b></td><td data-l="Giorno">' + esc(r.giornoLabel) + '</td><td data-l="Sede">' + esc(r.sede) + '</td><td data-l="Località"><b>' + esc(r.loc) + '</b></td><td data-l="Orari" class="mono">' + esc(r.p) + (r.r ? '–' + esc(r.r) : '') + '</td><td data-l="Auto">' + esc(r.auto) + '</td><td data-l="Guida">' + esc(r.guida) + '</td><td data-l="Affidatario">' + esc(r.aff) + '</td><td data-l="Equipaggio">' + esc(r.eq) + '</td><td data-l="Matrice">' + esc(r.mat) + '</td><td data-l="N." class="mono">' + esc(r.n) + '</td></tr>';
+  return '<tr class="' + (r.fatta ? '' : '') + '"><td data-l="Data" class="mono"><b>' + esc(r.data) + '</b>' + (r.fp ? ' <span class="chip warn">Fuori programma</span>' : '') + '</td><td data-l="Giorno">' + esc(r.giornoLabel) + '</td><td data-l="Sede">' + esc(r.sede) + '</td><td data-l="Località"><b>' + esc(r.loc) + '</b></td><td data-l="Orari" class="mono">' + esc(r.p) + (r.r ? '–' + esc(r.r) : '') + '</td><td data-l="Auto">' + esc(r.auto) + '</td><td data-l="Guida">' + esc(r.guida) + '</td><td data-l="Affidatario">' + esc(r.aff) + '</td><td data-l="Equipaggio">' + esc(r.eq) + '</td><td data-l="Matrice">' + esc(r.mat) + (r.tipo ? '<div class="hint">' + esc(r.tipo) + '</div>' : '') + '</td><td data-l="N." class="mono">' + esc(r.n) + '</td><td class="act">' + (r.fatta ? '' : tastoVerbali(r.mat, r.tipo, r.n, true)) + '</td></tr>';
 }
-var TESTA_USCITE = '<thead><tr><th>Data</th><th>Giorno</th><th>Sede</th><th>Località</th><th>Orari</th><th>Auto</th><th>Guida</th><th>Affidatario</th><th>Equipaggio / note</th><th>Matrice</th><th>N.</th></tr></thead>';
+var TESTA_USCITE = '<thead><tr><th>Data</th><th>Giorno</th><th>Sede</th><th>Località</th><th>Orari</th><th>Auto</th><th>Guida</th><th>Affidatario</th><th>Equipaggio / note</th><th>Matrice</th><th>N.</th><th></th></tr></thead>';
 
 function mieHtml(m){
   if (S.mieMese === undefined || S.mieMese === null) S.mieMese = m.meseCorrente;
   var h = '<section class="card" style="margin-bottom:16px"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h2 style="margin:0">Le mie uscite</h2>' +
-    '<p class="hint" style="margin:4px 0 0">Solo programmi approvati, uscite in cui sei in equipaggio, guida o affidatario.</p></div>' +
+    '<p class="hint" style="margin:4px 0 0">Solo programmi approvati, uscite in cui sei in equipaggio, guida o affidatario.</p><button class="btn pri small" id="bfuori" style="margin-top:8px">+ Uscita fuori programma</button></div>' +
     '<div class="row" style="gap:22px"><div class="kpi"><div class="l">Uscite a ' + esc(m.mese.nome) + '</div><div class="v">' + m.mese.uscite + '</div></div>' +
     '<div class="kpi"><div class="l">Già fatte</div><div class="v">' + m.mese.fatte + '</div></div>' +
     '<div class="kpi"><div class="l">Totale ' + esc(m.anno) + '</div><div class="v">' + m.totaleAnno + '</div></div></div></div>';
@@ -655,6 +747,8 @@ function mieHtml(m){
 }
 
 function collegaMie(ridisegna){
+  if ($('bfuori')) $('bfuori').onclick = nuovaFuori;
+  collegaVerbali();
   document.querySelectorAll('[data-mese]').forEach(function(b){ b.onclick = function(){ var i = Number(b.dataset.mese); S.mieMese = S.mieMese === i ? -1 : i; ridisegna(); }; });
   if ($('mieanno')) $('mieanno').onchange = function(){ S.mieAnno = Number(this.value); S.mieMese = -1; ridisegna(); };
 }
@@ -726,31 +820,69 @@ function vMie(){
   }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
 }
 
-// ---------------- avvisi (dirigente/admin) ----------------
+// ---------------- notifiche personali (tutti) ----------------
+var TIPO_N = { 'APPROVATO': 'Programma approvato', 'REVISIONE': 'Revisione', 'FUORI PROGRAMMA': 'Uscita fuori programma', 'ANNULLATA': 'Uscita annullata' };
+function vNotifiche(){
+  $('main').innerHTML = '<div class="eyebrow">Notifiche</div><h1>Le mie notifiche</h1><div class="empty">Caricamento…</div>';
+  leggi('mieNotifiche', {}, function(a){ if (S.vista !== 'notifiche') return;
+    var da = a.filter(function(x){ return x.accettabile; }), fatte = a.filter(function(x){ return !x.accettabile; }).slice(0, 30);
+    if (S.sett) { S.sett.notifiche = da.length; aggiornaBadge(); }
+    var voce = function(x){
+      var st = /^ASSENTE/.test(x.stato) ? '<span class="chip err">Assente</span>' : (x.accettabile ? '<span class="chip warn">Da accettare</span>' : '<span class="chip ok">Accettata</span>');
+      return '<div class="notif"><div class="t"><div class="row" style="gap:8px">' + st + '<b>' + esc(TIPO_N[x.tipo] || x.tipo) + ' · ' + esc(x.rif.replace(/^n\./, 'n. ').replace(/ FP$/, '')) + '</b><span class="hint">arrivata ' + esc(x.data) +
+        (x.accettabile && x.emailTra ? ' · <span style="color:var(--err)">email tra ' + x.emailTra + ' min se non accetti</span>' : '') +
+        (!x.accettabile ? ' · ' + esc(/^ASSENTE/.test(x.stato) ? 'segnalata ' : 'accettata ') + esc(x.quando) + (/RICEVUTO/.test(x.stato) ? ' (Telegram)' : '') : '') + '</span></div>' +
+        '<pre>' + esc(x.testo) + '</pre>' + (/^ASSENTE · /.test(x.stato) ? '<div class="hint">Nota: ' + esc(x.stato.replace(/^ASSENTE · /, '')) + '</div>' : '') +
+        '<div id="as' + x.riga + '"></div></div>' +
+        (x.accettabile ? '<div class="az"><button class="btn pri small" data-acc="' + x.riga + '">Accetto</button><button class="btn err small" data-ass="' + x.riga + '">Assente – riprogrammare equipaggio</button></div>' : '') + '</div>';
+    };
+    var h = '<div class="eyebrow">Notifiche</div><h1>Le mie notifiche' + (da.length ? ' <span class="badge" style="font-size:14px">' + da.length + '</span>' : '') + '</h1>' +
+      '<p class="hint" style="margin-top:-6px">«Accetto» vale come il «Ricevuto» di Telegram. Se una notifica non viene accettata entro 15 minuti arriva anche per email. Se sai già che quel giorno non ci sarai premi «Assente – riprogrammare equipaggio»: l\'avviso va al dirigente.</p>' +
+      '<section class="card" style="margin-bottom:16px"><h2>Da accettare (' + da.length + ')</h2>' + (da.length ? da.map(voce).join('') : '<div class="msg ok" style="margin:0">Nessuna notifica da accettare.</div>') + '</section>' +
+      '<section class="card"><h2>Già accettate</h2>' + (fatte.length ? fatte.map(voce).join('') : '<div class="empty">Nessuna.</div>') + '</section>';
+    $('main').innerHTML = h;
+    document.querySelectorAll('[data-acc]').forEach(function(b){ b.onclick = function(){ api('accettaNotifica', { riga: Number(b.dataset.acc) }).then(function(){ toast('Accettata'); vNotifiche(); }).catch(function(e){ toast(e.message); }); }; });
+    document.querySelectorAll('[data-ass]').forEach(function(b){ b.onclick = function(){
+      var box = $('as' + b.dataset.ass);
+      box.innerHTML = '<div class="row" style="margin-top:8px"><input id="asnota' + b.dataset.ass + '" maxlength="200" placeholder="Nota per il dirigente (facoltativa): es. ferie, visita…" style="flex:1 1 240px;min-height:38px;border:1px solid #cfc6b4;border-radius:6px;padding:6px 10px"><button class="btn err small" id="asok' + b.dataset.ass + '">Invia al dirigente</button><button class="btn small" id="asno' + b.dataset.ass + '">Annulla</button></div>';
+      $('asno' + b.dataset.ass).onclick = function(){ box.innerHTML = ''; };
+      $('asok' + b.dataset.ass).onclick = function(){ api('assenteNotifica', { riga: Number(b.dataset.ass), nota: $('asnota' + b.dataset.ass).value }).then(function(){ toast('Assenza segnalata al dirigente'); vNotifiche(); }).catch(function(e){ toast(e.message); }); };
+    }; });
+  }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
+}
+
+// ---------------- avvisi (dirigente/admin): riepilogo inviate / arrivate / accettate ----------------
+function progAvv(rif){ var m = String(rif).match(/^n\.(\d+)/); return m ? m[1] : '?'; }
 function vAvvisi(){
   S.filtroAvv = S.filtroAvv || 'aperti';
   $('main').innerHTML = '<div class="eyebrow">Notifiche inviate</div><h1>Avvisi</h1><div class="empty">Caricamento…</div>';
   leggi('avvisi', {}, function(a){ if (S.vista !== 'avvisi') return;
-    var aperti = function(x){ return !/RICEVUTO/.test(x.stato); };
-    var lista = S.filtroAvv === 'aperti' ? a.filter(aperti) : a;
-    var nApe = a.filter(aperti).length;
-    var col = function(st){ return /RICEVUTO/.test(st) ? 'ok' : (/NON|ERRORE/.test(st) ? 'err' : 'warn'); };
-    var gruppi = {}, ordine = [];
-    lista.forEach(function(x){ var k = x.rif + ' · ' + (x.tipo === 'REVISIONE' ? 'revisione' : 'approvazione'); if (!gruppi[k]) { gruppi[k] = []; ordine.push(k); } gruppi[k].push(x); });
+    var progs = []; a.forEach(function(x){ var n = progAvv(x.rif); if (progs.indexOf(n) === -1) progs.push(n); });
+    if (!S.progAvv || progs.indexOf(S.progAvv) === -1) S.progAvv = progs[0] || '';
+    var delProg = a.filter(function(x){ return progAvv(x.rif) === S.progAvv; });
+    var acc = function(x){ return /^(RICEVUTO|ACCETTATO)/.test(x.stato); }, ass = function(x){ return /^ASSENTE/.test(x.stato); };
+    var aperti = function(x){ return !acc(x) && !ass(x); };
+    var arrivata = function(x){ return x.canale === 'TELEGRAM' && !/ERRORE/.test(x.stato); };
+    var lista = S.filtroAvv === 'aperti' ? delProg.filter(aperti) : delProg;
     var h = '<div class="eyebrow">Notifiche inviate</div><h1>Avvisi</h1>' +
-      '<div class="row" style="margin-bottom:14px"><div class="days" style="margin:0"><button data-f="aperti" class="' + (S.filtroAvv === 'aperti' ? 'on' : '') + '">Da confermare (' + nApe + ')</button><button data-f="tutti" class="' + (S.filtroAvv === 'tutti' ? 'on' : '') + '">Tutti (' + a.length + ')</button></div>' +
-      '<span class="hint">«Sollecita» rimanda l\'avviso su Telegram (o per email); «Chiama» usa il numero della colonna TELEFONO di Personale guida.</span></div>';
-    if (!ordine.length) h += '<div class="msg ok">' + (S.filtroAvv === 'aperti' ? 'Tutti gli avvisi sono stati confermati.' : 'Nessun avviso inviato.') + '</div>';
-    ordine.forEach(function(k){
-      h += '<section class="card" style="margin-bottom:14px"><h2>Programma ' + esc(k.replace(/^n\./, 'n. ')) + '</h2><div class="tw"><table class="rows"><thead><tr><th>Persona</th><th>Canale</th><th>Stato</th><th>Inviato</th><th>Ricevuto</th><th></th></tr></thead><tbody>' +
-        gruppi[k].map(function(x){
-          return '<tr><td data-l="Persona"><b>' + esc(x.nome) + '</b></td><td data-l="Canale">' + esc(x.canale) + '</td><td data-l="Stato"><span class="chip ' + col(x.stato) + '">' + esc(x.stato) + '</span></td>' +
-            '<td data-l="Inviato" class="mono" style="font-size:12.5px">' + esc(x.data) + '</td><td data-l="Ricevuto" class="mono" style="font-size:12.5px">' + esc(x.ricevuto || '—') + '</td><td class="act">' +
-            (!/RICEVUTO/.test(x.stato) ? '<button class="btn small" data-sol="' + x.riga + '">Sollecita</button> ' : '') +
-            (x.telefono ? '<a class="btn small pri" href="tel:' + esc(x.telefono.replace(/[^\d+]/g, '')) + '">Chiama ' + esc(x.telefono) + '</a>' : '<span class="hint">nessun telefono</span>') + '</td></tr>';
-        }).join('') + '</tbody></table></div></section>';
-    });
+      '<div class="row" style="margin-bottom:14px"><label class="row" style="gap:6px;font-size:14px;font-weight:600">Programma <select id="avprog" style="min-height:38px;border:1px solid #cfc6b4;border-radius:6px;padding:4px 8px">' + progs.map(function(n){ return '<option value="' + esc(n) + '"' + (n === S.progAvv ? ' selected' : '') + '>n. ' + esc(n) + '</option>'; }).join('') + '</select></label>' +
+      '<div class="days" style="margin:0"><button data-f="aperti" class="' + (S.filtroAvv === 'aperti' ? 'on' : '') + '">Da accettare (' + delProg.filter(aperti).length + ')</button><button data-f="tutti" class="' + (S.filtroAvv === 'tutti' ? 'on' : '') + '">Tutti (' + delProg.length + ')</button></div></div>' +
+      '<div class="grid kpis" style="margin-bottom:14px">' + kpi('Inviate', delProg.length) + kpi('Arrivate (Telegram)', delProg.filter(arrivata).length) + kpi('Accettate', delProg.filter(acc).length) +
+      kpi('Assenti', delProg.filter(ass).length) + kpi('Email per mancata accettazione', delProg.filter(function(x){ return x.emailInviata; }).length) + '</div>' +
+      '<p class="hint" style="margin-top:0">Arrivata = Telegram ha consegnato il messaggio (per email e app non si può sapere). «Sollecita» rimanda l\'avviso; «Chiama» usa il numero della colonna TELEFONO di Personale guida.</p>';
+    var col = function(x){ return acc(x) ? 'ok' : (ass(x) || /NON|ERRORE/.test(x.stato) ? 'err' : 'warn'); };
+    if (!lista.length) h += '<div class="msg ok">' + (S.filtroAvv === 'aperti' ? 'Tutte le notifiche di questo programma sono state accettate.' : 'Nessun avviso.') + '</div>';
+    else h += '<section class="card"><div class="tw"><table class="rows"><thead><tr><th>Persona</th><th>Avviso</th><th>Inviata</th><th>Arrivata</th><th>Stato</th><th>Email</th><th></th></tr></thead><tbody>' +
+      lista.map(function(x){
+        return '<tr><td data-l="Persona"><b>' + esc(x.nome) + '</b></td><td data-l="Avviso">' + esc(TIPO_N[x.tipo] || x.tipo) + '<div class="hint">' + esc(x.rif) + '</div></td>' +
+          '<td data-l="Inviata" class="mono" style="font-size:12.5px">' + esc(x.data) + ' · ' + esc(x.canale.toLowerCase()) + '</td><td data-l="Arrivata">' + (arrivata(x) ? '✔' : '—') + '</td>' +
+          '<td data-l="Stato"><span class="chip ' + col(x) + '">' + esc(x.stato) + '</span>' + (x.ricevuto ? ' <span class="mono" style="font-size:12px">' + esc(x.ricevuto) + '</span>' : '') + '</td>' +
+          '<td data-l="Email" class="mono" style="font-size:12.5px">' + esc(x.emailInviata || '—') + '</td><td class="act">' +
+          (aperti(x) ? '<button class="btn small" data-sol="' + x.riga + '">Sollecita</button> ' : '') +
+          (x.telefono ? '<a class="btn small pri" href="tel:' + esc(x.telefono.replace(/[^\d+]/g, '')) + '">Chiama</a>' : '<span class="hint">nessun telefono</span>') + '</td></tr>';
+      }).join('') + '</tbody></table></div></section>';
     $('main').innerHTML = h;
+    $('avprog') && ($('avprog').onchange = function(){ S.progAvv = this.value; vAvvisi(); });
     document.querySelectorAll('[data-f]').forEach(function(b){ b.onclick = function(){ S.filtroAvv = b.dataset.f; vAvvisi(); }; });
     document.querySelectorAll('[data-sol]').forEach(function(b){ b.onclick = function(){ api('sollecita', { riga: Number(b.dataset.sol) }).then(function(){ toast('Sollecito inviato'); vAvvisi(); }).catch(function(e){ toast(e.message); }); }; });
   }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
@@ -823,10 +955,10 @@ function vArchivio(){
       (a.length ? a.map(function(x){
         var stato = esc(x.stato) + (x.revInCorso ? ' <span class="chip warn">Rev.' + (Number(x.rev) + 1) + ' in corso</span>' : '') + (x.modificabile ? ' <span class="chip ok">modificabile</span>' : '');
         return '<tr><td class="mono" data-l="N.">' + esc(x.numero) + '</td><td data-l="Settimana">' + esc(x.settimana) + '</td><td data-l="Stato">' + stato + '</td><td data-l="Approvato da">' + esc(x.approvatoDa) + '</td><td data-l="Data">' + esc(x.data) + '</td>' +
-          '<td class="act"><button class="btn small ' + (x.modificabile && puoCompilare() ? 'pri' : '') + '" data-apri="' + esc(x.numero) + '">' + (x.modificabile && puoCompilare() ? 'Apri e modifica' : 'Apri') + '</button> ' +
+          '<td class="act"><button class="btn small ' + (x.modificabile ? 'pri' : '') + '" data-apri="' + esc(x.numero) + '">' + (x.modificabile ? (puoCompilare() ? 'Apri e modifica' : 'Apri · aggiungi uscita') : 'Apri') + '</button> ' +
           (isDir() ? '<button class="btn small" data-conf="' + esc(x.numero) + '">Conferme</button> ' : '') + (x.pdf ? '<button class="btn small" data-pdf="' + esc(x.pdf) + '">PDF programma</button> ' : '') + (x.riepilogo ? '<button class="btn small" data-pdf="' + esc(x.riepilogo) + '">PDF riepilogo</button>' : '') + '</td></tr>';
       }).join('') : '<tr><td colspan="6" class="empty">Nessun programma approvato.</td></tr>') + '</tbody></table></div></section>' +
-      '<p style="font-size:13px;color:var(--dim)">Un programma approvato si può modificare fino al sabato della sua settimana: le modifiche formano la revisione (Rev.) che il dirigente approva. Si conserva solo l\'ultima revisione.</p>';
+      '<p style="font-size:13px;color:var(--dim)">Fino al sabato della sua settimana a un programma approvato si possono aggiungere <b>uscite fuori programma</b> (tutti, valide subito; il dirigente le approva su Telegram). Compilatori e dirigenti possono anche modificare o annullare righe: le modifiche formano la revisione (Rev.) che il dirigente approva. Si conserva solo l\'ultima revisione.</p>';
     $('main').innerHTML = h;
     document.querySelectorAll('[data-pdf]').forEach(function(b){ b.onclick = function(){ scaricaPdf(b.dataset.pdf); }; });
     document.querySelectorAll('[data-apri]').forEach(function(b){ b.onclick = function(){ apriArchivio(Number(b.dataset.apri)); }; });
@@ -986,6 +1118,7 @@ setInterval(function(){
   if (!S.token || !S.sett || document.hidden || S.ed || S.arch || S.vista !== 'compila' || nSpin > 0) return;
   api('settimana', {}, true).then(function(d){
     if (S.ed || S.vista !== 'compila' || S.arch) return;
+    S.sett.notifiche = d.notifiche; aggiornaBadge();
     if (JSON.stringify(d.giorni) + JSON.stringify(d.bozze) === JSON.stringify(S.sett.giorni) + JSON.stringify(S.sett.bozze)) { S.sett = d; return; }
     var y = window.scrollY; S.sett = d; vCompila(); window.scrollTo(0, y);
   }).catch(function(){});
