@@ -116,6 +116,8 @@ label.f.miss .chips{border-color:var(--err);background:#fff8f7}
 .aq .altre input{width:20px;height:20px;accent-color:#8a5a00;flex:none}
 .chip.att{background:#e6eaf5;color:#2b3f7a}.chip.imp{background:#ece3f7;color:#5b2d8a}
 .labg td,.labg th{text-align:center}.labg td:first-child,.labg th:first-child{text-align:left}
+.piede{max-width:1180px;margin:10px auto 24px;padding:0 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:var(--dim)}
+.piede button{border:0;background:none;color:var(--pri);font:600 13px 'IBM Plex Sans',sans-serif;cursor:pointer;padding:8px 0;text-decoration:underline}
 .pill{display:inline-block;background:#fff8e6;color:var(--warn);border:1px solid #e9c97a;border-radius:10px;padding:1px 8px;font-size:12px;font-weight:700}
 .aqris{font-size:12.5px;color:var(--pri);font-weight:600;margin-top:2px}
 .perc{margin-top:6px;font-size:13px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -231,8 +233,8 @@ function vistaCambioObbligatorio(temporanea, err){
     '<form class="card grid" id="fcam">' + (err ? '<div class="msg err">' + esc(err) + '</div>' : '') +
     '<div style="font-size:14px">Ciao <b>' + esc(S.utente.nome || S.utente.username) + '</b>, stai usando una password temporanea data dall\'amministratore. Per continuare scegline una tua: la conosci solo tu.</div>' +
     (temporanea ? '' : '<label class="f">Password temporanea<input type="password" name="a" autocomplete="current-password" required></label>') +
-    '<label class="f">Nuova password (almeno 8 caratteri)<input type="password" name="n" autocomplete="new-password" minlength="8" required></label>' +
-    '<label class="f">Ripeti nuova password<input type="password" name="r" autocomplete="new-password" minlength="8" required></label>' +
+    '<label class="f">Nuova password (almeno 10 caratteri, niente nome utente o sequenze)<input type="password" name="n" autocomplete="new-password" minlength="10" required></label>' +
+    '<label class="f">Ripeti nuova password<input type="password" name="r" autocomplete="new-password" minlength="10" required></label>' +
     '<button class="btn pri" type="submit">Salva e continua</button><button class="btn" type="button" id="bescc">Esci</button></form></div>';
   $('bescc').onclick = function(){ esci(); };
   $('fcam').onsubmit = function(e){
@@ -525,7 +527,7 @@ function disegna(){
   $('app').innerHTML =
     '<header class="top"><div class="in"><div class="brand">PdS<span>·</span>ARPA Molise</div><nav class="menu" aria-label="Menu principale">' +
     voci.map(function(v){ return '<button data-v="' + v[0] + '" class="' + (S.vista === v[0] || (S.vista === 'archvista' && v[0] === 'archivio') ? 'on' : '') + '">' + v[1] + (v[0] === 'notifiche' ? '<span class="badge" id="nbadge" style="display:none"></span>' : '') + (v[0] === 'avvisi' ? '<span class="badge" id="abadge" style="display:none"></span>' : '') + (v[0] === 'limiti' ? '<span class="badge" id="lbadge" style="display:none"></span>' : '') + '</button>'; }).join('') +
-    '</nav><div class="who"><span>' + esc(u.nome || u.username) + ' · ' + esc(u.ruolo.toLowerCase()) + (isLab() ? ' + resp. lab' : (isAnalista() ? ' + analista' : '')) + '</span><button id="bacc">Account</button><button id="besc">Esci</button></div></div></header><main id="main"></main>';
+    '</nav><div class="who"><span>' + esc(u.nome || u.username) + ' · ' + esc(u.ruolo.toLowerCase()) + (isLab() ? ' + resp. lab' : (isAnalista() ? ' + analista' : '')) + '</span><button id="bacc">Account</button><button id="besc">Esci</button></div></div></header><main id="main"></main><footer class="piede"><button id="bsegnala" type="button">💬 Segnala un problema o un suggerimento</button><span>Programma di Servizio · app 1.6</span></footer>';
   document.querySelectorAll('nav.menu button').forEach(function(b){ b.onclick = function(){
     if (S.ed && Object.keys(S.ed.dati || {}).some(function(k){ var v = S.ed.dati[k]; return k.charAt(0) !== '_' && v; }) && !confirm('L\'uscita aperta non è salvata. Chiuderla?')) return;
     S.vista = b.dataset.v; ls('pds_vista', S.vista); S.msg = null; S.ed = null; S.arch = null;
@@ -536,6 +538,7 @@ function disegna(){
     }).catch(function(e){ toast(e.message); });
   }; });
   $('besc').onclick = function(){ esci(); };
+  $('bsegnala').onclick = function(){ apriSegnala(); };
   $('bacc').onclick = function(){ S.vista = 'account'; disegna(); };
   aggiornaBadge();
   if (S.vista !== 'archvista') S.arch = null;
@@ -690,14 +693,14 @@ function sblocca(n){
   var testo = p.approvato ? 'Il programma è approvato: la modifica creerà la Rev.' + (p.revApprovata + 1) + ' da far approvare al dirigente. Sbloccare la riga?' : 'Sbloccare la riga per modificarla? Finché non la salvi di nuovo il programma non si può approvare.';
   if (!confirm(testo)) return;
   modificaRiga(n);   // la scheda si apre subito; lo sblocco viaggia in sottofondo
-  S.sblocco = scrivi(S.arch ? 'archivioSblocca' : 'sbloccaRiga', { riga: n }, true)
+  S.sblocco = scrivi(S.arch ? 'archivioSblocca' : 'sbloccaRiga', { riga: n, id: t.r.id }, true)
     .catch(function(e){ toast(e.message); S.ed = null; vCompila(); throw e; });
 }
 
 function modificaRiga(n){
   var t = trovaRiga(n); if (!t) return;
   var d = {}; CAMPI.forEach(function(k){ d[k] = t.r[k]; });
-  apriEditor({ riga: n, giorno: t.giorno, sede: t.sede, dati: d, codici: t.r.cod, nOrig: t.r.n, matOrig: t.r.mat, uocOrig: t.r.uoc });
+  apriEditor({ riga: n, id: t.r.id, giorno: t.giorno, sede: t.sede, dati: d, codici: t.r.cod, nOrig: t.r.n, matOrig: t.r.mat, uocOrig: t.r.uoc });
 }
 
 // ⧉ Duplica: stessa uscita (giorno, sede, località, auto, equipaggio…), matrice / tipo / campioni da scegliere
@@ -715,7 +718,7 @@ function eliminaRiga(n){
   var annulla = p.approvato && !(t.r.modifica === 'AGGIUNTA' && t.r.rev > p.revApprovata);
   var testo = annulla ? 'Annullare l\'uscita "' + t.r.loc + '"? Resterà visibile barrata nella revisione.' : 'Svuotare la riga "' + t.r.loc + '"?' + (t.r.cod ? ' I codici ' + t.r.cod + ' non verranno riutilizzati.' : '');
   if (!confirm(testo)) return;
-  scrivi(S.arch ? 'archivioAnnulla' : 'svuotaRiga', { riga: n }).then(function(){ toast(annulla ? 'Uscita annullata' : 'Riga svuotata'); vCompila(); }).catch(function(e){ toast(e.message); });
+  scrivi(S.arch ? 'archivioAnnulla' : 'svuotaRiga', { riga: n, id: t.r.id }).then(function(){ toast(annulla ? 'Uscita annullata' : 'Riga svuotata'); vCompila(); }).catch(function(e){ toast(e.message); });
 }
 
 // ---------------- editor uscita ----------------
@@ -954,7 +957,7 @@ function disegnaEditor(){
       var annulla = pr.approvato && t && !(t.r.modifica === 'AGGIUNTA' && t.r.rev > pr.revApprovata);
       if (!confirm(annulla ? 'Il programma è approvato: l\'uscita verrà ANNULLATA (resta visibile barrata nella revisione). Continuare?' : 'Svuotare la riga salvata?' + (ed.codici ? '\nI codici ' + ed.codici + ' risultano persi (restano scritti nel registro).' : ''))) return;
       var attesa = S.sblocco || Promise.resolve();
-      return attesa.then(function(){ S.sblocco = null; return scrivi(S.arch ? 'archivioAnnulla' : 'svuotaRiga', { riga: ed.riga }); })
+      return attesa.then(function(){ S.sblocco = null; return scrivi(S.arch ? 'archivioAnnulla' : 'svuotaRiga', { riga: ed.riga, id: ed.id }); })
         .then(function(){ toast(annulla ? 'Uscita annullata' : 'Riga svuotata'); S.ed = null; vCompila(); }).catch(function(e){ ed.errore = e.message; disegnaEditor(); });
     }
     if (!confirm('Svuotare tutti i campi?')) return; ed.dati = {}; preparaChips(ed.dati); ed.aq = aqDa(''); ed.provato = false; ed.errore = null; disegnaEditor(); };
@@ -998,7 +1001,7 @@ function salvaRiga(forza){
   ed.provato = true;
   var m = mancanti(ed.dati);
   if (m.length) { ed.errore = 'Mancano: ' + m.map(function(k){ return NOMI[k]; }).join(', ') + '.'; return disegnaEditor(); }
-  var payload = { giorno: ed.giorno, sede: ed.sede, riga: ed.riga || 0, bozzaId: ed.bozzaId || '', dati: ed.dati, forza: forza === true };
+  var payload = { giorno: ed.giorno, sede: ed.sede, riga: ed.riga || 0, id: ed.riga ? ed.id || '' : '', bozzaId: ed.bozzaId || '', dati: ed.dati, forza: forza === true };
   var nN = String(ed.dati.n || ''), nO = String(ed.nOrig || '');
   if (forza !== true && ed.riga && ed.codici && nO && nN !== nO && ed.dati.mat === ed.matOrig && ed.dati.uoc === ed.uocOrig) {
     var piu = Number(nN) > Number(nO);
@@ -1114,9 +1117,10 @@ function tuttiHtml(t){
   return h;
 }
 
+function csvCella(c){ c = String(c == null ? '' : c); if (/^[=+\-@\t\r]/.test(c)) c = "'" + c; return '"' + c.replace(/"/g, '""') + '"'; }
 function csvTutti(t){
   var r = [['Persona'].concat(t.mesi).concat(['Totale'])].concat(t.righe.map(function(x){ return [x.nome].concat(x.mesi).concat([x.tot]); }));
-  var csv = '﻿' + r.map(function(l){ return l.map(function(c){ return '"' + String(c).replace(/"/g, '""') + '"'; }).join(';'); }).join('\r\n');
+  var csv = '﻿' + r.map(function(l){ return l.map(csvCella).join(';'); }).join('\r\n');
   var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'Uscite per persona ' + t.anno + '.csv'; document.body.appendChild(a); a.click(); a.remove();
 }
 
@@ -1168,17 +1172,17 @@ function vMie(){
 }
 
 // ---------------- notifiche personali (tutti) ----------------
-var TIPO_N = { 'APPROVATO': 'Programma approvato', 'REVISIONE': 'Revisione', 'FUORI PROGRAMMA': 'Uscita fuori programma', 'ANNULLATA': 'Uscita annullata', 'CONFERMA USCITA': 'Uscita di oggi: si fa?', 'USCITA ANNULLATA': 'Uscita annullata / da riprogrammare' };
+var TIPO_N = { 'LABORATORIO': 'Laboratorio', 'LIMITE': 'Limite campioni', 'APPROVATO': 'Programma approvato', 'REVISIONE': 'Revisione', 'FUORI PROGRAMMA': 'Uscita fuori programma', 'ANNULLATA': 'Uscita annullata', 'CONFERMA USCITA': 'Uscita di oggi: si fa?', 'USCITA ANNULLATA': 'Uscita annullata / da riprogrammare' };
 function vNotifiche(){
   $('main').innerHTML = '<div class="eyebrow">Notifiche</div><h1>Le mie notifiche</h1><div class="empty">Caricamento…</div>';
   leggi('mieNotifiche', {}, function(a){ if (S.vista !== 'notifiche') return;
     var da = a.filter(function(x){ return x.accettabile; }), fatte = a.filter(function(x){ return !x.accettabile; }).slice(0, 30);
     if (S.sett) { S.sett.notifiche = da.length; if (S.sett.contatori) S.sett.contatori.notifiche = da.length; aggiornaBadge(); }
     var voce = function(x){
-      var st = /^ASSENTE/.test(x.stato) ? '<span class="chip err">Assente</span>' : (x.accettabile ? '<span class="chip warn">Da accettare</span>' : '<span class="chip ok">Accettata</span>');
+      var st = /^ASSENTE/.test(x.stato) ? '<span class="chip err">Assente</span>' : (/^INFO/.test(x.stato) ? '<span class="chip att">Informativa</span>' : (/^IN CODA/.test(x.stato) ? '<span class="chip warn">Arriva alle 7</span>' : (x.accettabile ? '<span class="chip warn">Da accettare</span>' : '<span class="chip ok">Accettata</span>')));
       return '<div class="notif"><div class="t"><div class="row" style="gap:8px">' + st + '<b>' + esc(TIPO_N[x.tipo] || x.tipo) + ' · ' + esc(x.rif.replace(/^n\./, 'n. ').replace(/ FP$/, '').replace(/ USCITA .*$/, '')) + '</b><span class="hint">arrivata ' + esc(x.data) +
         (x.consegnata ? ' · <span style="color:var(--ok)">✔ consegnata sul telefono</span>' : '') + (x.accettabile && x.emailTra ? ' · <span style="color:var(--err)">email tra ' + x.emailTra + ' min se non accetti</span>' : '') +
-        (!x.accettabile ? ' · ' + esc(/^ASSENTE/.test(x.stato) ? 'segnalata ' : 'accettata ') + esc(x.quando) + (/RICEVUTO/.test(x.stato) ? ' (Telegram)' : '') : '') + '</span></div>' +
+        (!x.accettabile && !/^INFO/.test(x.stato) ? ' · ' + esc(/^ASSENTE/.test(x.stato) ? 'segnalata ' : 'accettata ') + esc(x.quando) + (/RICEVUTO/.test(x.stato) ? ' (Telegram)' : '') : '') + '</span></div>' +
         '<pre>' + esc(x.testo) + '</pre>' + (/^ASSENTE · /.test(x.stato) ? '<div class="hint">Nota: ' + esc(x.stato.replace(/^ASSENTE · /, '')) + '</div>' : '') +
         '<div id="as' + x.riga + '"></div></div>' +
         (x.accettabile ? (x.tipo === 'CONFERMA USCITA' ? '<div class="az"><button class="btn pri small" data-acc="' + x.riga + '">✅ Confermo</button><button class="btn err small" data-esrif="' + esc(x.rif) + '">⛔ Non si fa</button></div>'
@@ -1187,7 +1191,7 @@ function vNotifiche(){
     var h = '<div class="eyebrow">Notifiche</div><h1>Le mie notifiche' + (da.length ? ' <span class="badge" style="font-size:14px">' + da.length + '</span>' : '') + '</h1>' +
       '<p class="hint" style="margin-top:-6px">Le notifiche arrivano anche sul telefono; i tasti nella notifica valgono come quelli qui. Se una notifica non viene accettata entro 15 minuti arriva anche per email. Se sai già che quel giorno non ci sarai premi «Assente – riprogrammare equipaggio»: l\'avviso va al dirigente.</p>' +
       '<section class="card" style="margin-bottom:16px"><h2>Da accettare (' + da.length + ')</h2>' + (da.length ? da.map(voce).join('') : '<div class="msg ok" style="margin:0">Nessuna notifica da accettare.</div>') + '</section>' +
-      '<section class="card"><h2>Già accettate</h2>' + (fatte.length ? fatte.map(voce).join('') : '<div class="empty">Nessuna.</div>') + '</section>';
+      '<section class="card"><h2>Già accettate e informative</h2>' + (fatte.length ? fatte.map(voce).join('') : '<div class="empty">Nessuna.</div>') + '</section>';
     $('main').innerHTML = h;
     document.querySelectorAll('[data-acc]').forEach(function(b){ b.onclick = function(){ api('accettaNotifica', { riga: Number(b.dataset.acc) }).then(function(){ toast('Fatto'); aggiornaContatori(); vNotifiche(); }).catch(function(e){ toast(e.message); }); }; });
     document.querySelectorAll('[data-esrif]').forEach(function(b){ b.onclick = function(){ var m = b.dataset.esrif.match(/^n\.(\d+) USCITA (.+)$/); if (m) apriEsito(Number(m[1]), m[2], '', vNotifiche); }; });
@@ -1387,7 +1391,7 @@ function vAdmin(){
           '<td data-l="Notifiche">' + (x.push ? '<span class="chip ok">' + x.push + (x.push === 1 ? ' dispositivo' : ' dispositivi') + '</span>' : '<span class="chip err">non attive</span>' +
             (x.email ? ' <a class="btn small" href="mailto:' + esc(x.email) + '?subject=' + encodeURIComponent('Attiva le notifiche - Programma di servizio') + '&body=' + encodeURIComponent('Ciao, per ricevere sul telefono le tue uscite apri ' + APP_URL + ' sul telefono, installa l\'app sulla schermata Home (Android: Chrome → ⋮ → Installa app; iPhone: Safari → Condividi → Aggiungi alla schermata Home), entra e premi «Attiva notifiche» (oppure Account → Notifiche sul telefono).') + '">Sollecita</a>' : '') +
             (x.telefono ? ' <a class="btn small" href="tel:' + esc(x.telefono.replace(/[^\d+]/g, '')) + '">Chiama</a>' : '')) + '</td>' +
-          '<td class="act">' + (x.bloccato ? '<button class="btn small" data-sbl="' + esc(x.username) + '">Sblocca</button> ' : '') + '<button class="btn small" data-pwd="' + esc(x.username) + '">Password temporanea</button></td></tr>';
+          '<td class="act">' + (x.bloccato ? '<button class="btn small" data-sbl="' + esc(x.username) + '">Sblocca</button> ' : '') + '<button class="btn small" data-pwd="' + esc(x.username) + '">Password temporanea</button> <button class="btn small" data-disc="' + esc(x.username) + '">Disconnetti</button></td></tr>';
       }).join('') +
       '</tbody></table></div></section>';
     h += '<div class="grid"><section class="card"><h2>Notifiche app (Firebase)</h2><div id="pushadm" style="font-size:14px"><span class="empty">Caricamento…</span></div>' +
@@ -1397,6 +1401,8 @@ function vAdmin(){
       '<details style="margin-top:8px"><summary style="cursor:pointer;font-size:13px">Cambia token del bot</summary><p style="font-size:13px;margin:8px 0">Su Telegram apri <b>@BotFather</b> → <span class="mono">/newbot</span> → copia il <b>token</b> e incollalo qui (salvandolo Telegram si riattiva).</p>' +
       '<div class="row"><input id="tgtoken" type="password" placeholder="123456789:AA…" style="flex:1 1 220px;min-height:42px;border:1px solid #cfc6b4;border-radius:6px;padding:8px 10px"><button class="btn" id="tgsalva">Salva token</button></div></details></section>' +
       '<section class="card"><h2>Allinea codici dal programma in uso</h2><p style="font-size:13px;margin-top:0">Copia il foglio CODICI del programma attuale in questo. Da fare <b>il giorno del passaggio</b>, quando sul vecchio programma non si inseriscono più uscite.</p><div id="codbox"></div><div class="row"><button class="btn" id="bcodA">Anteprima</button><button class="btn pri hidden" id="bcodC">Conferma allineamento</button></div></section>';
+    h += '<section class="card"><h2>Sicurezza e backup</h2><p style="font-size:13px;margin-top:0">Il backup della Copia e di DATI APP si fa da solo ogni notte nella cartella Drive «Backup Programma di Servizio» (30 giorni). «Proteggi» rende modificabili solo dall\'account proprietario le colonne di servizio del programma (P–AD) e i fogli di DATI APP: l\'app continua a funzionare.</p><div id="sicbox"></div><div class="row"><button class="btn" id="bbackup">Backup adesso</button><button class="btn warn" id="bprot">Proteggi colonne e fogli</button></div></section>';
+    h += '<section class="card" style="grid-column:1/-1"><h2>Segnalazioni degli utenti</h2><div id="segbox"><span class="empty">Caricamento…</span></div></section>';
     h += '<section class="card"><h2>Completa righe vecchie</h2><p style="font-size:13px;margin-top:0">Alle uscite salvate prima del tipo di intervento assegna il tipo quando la matrice ne ha <b>uno solo</b> (con le aliquote previste *). Le altre mostrano il tasto «Scegli tipo e aliquote».</p><div id="ctbox"></div><button class="btn" id="bcompT">Completa righe vecchie</button></section>';
     h += '<section class="card"><h2>Prepara nuova settimana</h2><p style="font-size:13px;margin-top:0">Svuota il foglio, riporta i blocchi alla dimensione iniziale, passa al n. ' + (Number(p.numero) + 1) + ' con le date della settimana dopo e J2 = NO. Possibile solo con il programma approvato e archiviato.</p><button class="btn warn" id="bnuovaS"' + (p.approvato && !p.revInCorso ? '' : ' disabled') + '>Prepara programma n. ' + (Number(p.numero) + 1) + '</button></section></div>';
     h += '</div>';
@@ -1425,6 +1431,12 @@ function vAdmin(){
       var tk = $('tgtoken').value.trim(); if (!tk) return toast('Incolla il token');
       api('telegramConfig', { tokenBot: tk }).then(function(r){ toast('Bot @' + r.bot + ' attivo'); S.sett.telegram = { configurato: true, bot: r.bot, collegato: S.sett.telegram && S.sett.telegram.collegato }; vAdmin(); }).catch(function(e){ toast(e.message); });
     };
+    document.querySelectorAll('[data-disc]').forEach(function(b){ b.onclick = function(){ if (!confirm('Chiudere tutte le sessioni di ' + b.dataset.disc + '? Dovrà rientrare con la password.')) return; api('disconnetti', { username: b.dataset.disc }).then(function(){ toast('Disconnesso'); }).catch(function(e){ toast(e.message); }); }; });
+    $('bbackup').onclick = function(){ api('backupOra').then(function(r){ $('sicbox').innerHTML = '<div class="msg ok">Backup fatto: ' + esc(r.file.join(', ')) + '.</div>'; }).catch(function(e){ toast(e.message); }); };
+    $('bprot').onclick = function(){ if (!confirm('Proteggere le colonne di servizio e i fogli di DATI APP? Solo l\'account proprietario potrà modificarli a mano.')) return; api('proteggi').then(function(r){ $('sicbox').innerHTML = '<div class="msg ok">Protetti: ' + esc(r.protetti.join(', ')) + '.</div>'; }).catch(function(e){ toast(e.message); }); };
+    api('segnalazioni', {}, true).then(function(l){ if (!$('segbox')) return;
+      $('segbox').innerHTML = l.length ? '<div class="tw"><table class="rows"><thead><tr><th>Data</th><th>Chi</th><th>Pagina</th><th>Testo</th></tr></thead><tbody>' + l.slice(0, 30).map(function(x){ return '<tr><td data-l="Data" class="mono" style="font-size:12.5px">' + esc(x.data) + '</td><td data-l="Chi">' + esc(x.nome || x.utente) + '</td><td data-l="Pagina">' + esc(x.pagina) + '</td><td data-l="Testo">' + esc(x.testo) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty">Nessuna segnalazione.</div>';
+    }).catch(function(){});
     $('bcompT').onclick = function(){ api('completaTipi').then(function(r){ $('ctbox').innerHTML = '<div class="msg ok">Tipo assegnato a ' + r.fatte + ' uscite. Da scegliere a mano: ' + r.restano + '.</div>'; }).catch(function(e){ toast(e.message); }); };
     $('bcodA').onclick = function(){ codici(false); };
     $('bcodC').onclick = function(){ if (confirm('Sostituire il foglio CODICI con quello del programma in uso?')) codici(true); };
@@ -1560,6 +1572,7 @@ function leggiHash(){
   if (!h) return;
   var m = h.match(/^#approva-(\d+)/);
   if (h === '#notifiche') S.vista = 'notifiche';
+  else if (h === '#admin' && isAdmin()) S.vista = 'admin';
   else if (h === '#avvisi' && isDir()) S.vista = 'avvisi';
   else if (h === '#limiti' && (isLab() || isAdmin())) S.vista = 'limiti';
   else if (m && isDir()) { S.vista = 'approva'; S.approvaNum = Number(m[1]); }
@@ -1590,14 +1603,27 @@ function apriEsito(numero, id, descr, dopo){
 }
 
 // ---------------- account ----------------
+function apriSegnala(){
+  var d = document.createElement('div'); d.className = 'spin';
+  d.innerHTML = '<div class="card" style="max-width:460px;width:calc(100% - 32px);color:var(--ink);font-weight:400"><h2>Segnala un problema o un suggerimento</h2>' +
+    '<p class="hint" style="margin-top:0">Scrivi cosa non funziona (in quale pagina, cosa hai premuto) o cosa miglioreresti. Arriva all\'amministratore.</p>' +
+    '<textarea id="sgtesto" rows="5" maxlength="1500" style="width:100%;border:1px solid #cfc6b4;border-radius:6px;padding:8px 10px;font:14px \'IBM Plex Sans\',sans-serif"></textarea>' +
+    '<div class="row" style="margin-top:10px"><button class="btn pri" id="sgok">Invia</button><button class="btn" id="sgno">Annulla</button></div></div>';
+  document.body.appendChild(d);
+  $('sgno').onclick = function(){ d.remove(); };
+  $('sgok').onclick = function(){ api('segnala', { testo: $('sgtesto').value, pagina: S.vista }).then(function(){ d.remove(); toast('Grazie! Segnalazione inviata.'); }).catch(function(e){ toast(e.message); }); };
+}
+
 function vAccount(){
   document.querySelectorAll('nav.menu button').forEach(function(b){ b.classList.remove('on'); });
   $('main').innerHTML = '<div class="eyebrow">Account</div><h1>' + esc(S.utente.nome || S.utente.username) + '</h1>' +
     '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));align-items:start">' +
     '<section class="card" id="pushbox"></section>' + (pushServer().telegram ? '<section class="card" id="tgbox"><h2>Notifiche Telegram</h2><div class="empty">Caricamento…</div></section>' : '') +
     '<form class="card grid" id="fpw"><h2>Cambia password</h2><label class="f">Password attuale<input type="password" name="a" autocomplete="current-password" required></label>' +
-    '<label class="f">Nuova password (almeno 8 caratteri)<input type="password" name="n" autocomplete="new-password" minlength="8" required></label>' +
-    '<label class="f">Ripeti nuova password<input type="password" name="r" autocomplete="new-password" minlength="8" required></label><button class="btn pri">Salva</button></form></div>';
+    '<label class="f">Nuova password (almeno 10 caratteri, niente nome utente o sequenze)<input type="password" name="n" autocomplete="new-password" minlength="10" required></label>' +
+    '<label class="f">Ripeti nuova password<input type="password" name="r" autocomplete="new-password" minlength="10" required></label><button class="btn pri">Salva</button><span class="hint">Cambiando la password si chiudono le sessioni aperte sugli altri dispositivi.</span></form>' +
+    '<section class="card"><h2>Preferenze notifiche</h2><div id="prefbox"><span class="empty">Caricamento…</span></div></section>' +
+    '<section class="card"><h2>Sicurezza</h2><p style="font-size:13.5px;margin-top:0">Hai perso il telefono o hai usato un PC non tuo? Chiudi l\'accesso ovunque: dovrai rientrare con la password su tutti i dispositivi, anche questo.</p><button class="btn warn" id="besciov">Esci da tutti i dispositivi</button></section></div>';
   $('fpw').onsubmit = function(e){
     e.preventDefault(); var f = e.target;
     if (f.n.value !== f.r.value) return toast('Le due password non coincidono');
@@ -1605,6 +1631,16 @@ function vAccount(){
   };
   pushBox();
   if ($('tgbox')) tgBox();
+  $('besciov').onclick = function(){ if (!confirm('Chiudere l\'accesso su tutti i dispositivi (anche questo)?')) return; api('esciOvunque').then(function(){ esci(true); toast('Accesso chiuso ovunque'); }).catch(function(e){ toast(e.message); }); };
+  api('preferenze', {}, true).then(function(p){
+    if (!$('prefbox')) return;
+    $('prefbox').innerHTML = (isAnalista() ? '<label class="row" style="gap:10px;font-size:14px;margin-bottom:10px;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="pflab" style="width:20px;height:20px;flex:none;margin-top:2px"' + (p.lab ? ' checked' : '') + '> Notifiche del laboratorio (campioni in arrivo, modifiche, annullamenti)</label>' : '') +
+      '<label class="row" style="gap:10px;font-size:14px;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="pfmail" style="width:20px;height:20px;flex:none;margin-top:2px"' + (p.email ? ' checked' : '') + '> Email se non accetto una notifica entro 15 minuti</label>' +
+      '<p class="hint">Di notte (20–7) le notifiche non urgenti arrivano alle 7; quelle urgenti (uscita annullata) subito.</p>';
+    var salva = function(){ api('preferenze', { pref: { lab: $('pflab') ? $('pflab').checked : true, email: $('pfmail').checked } }, true).then(function(){ toast('Preferenze salvate'); }).catch(function(e){ toast(e.message); }); };
+    if ($('pflab')) $('pflab').onchange = salva;
+    $('pfmail').onchange = salva;
+  }).catch(function(){});
 }
 
 function caricaQr(){
