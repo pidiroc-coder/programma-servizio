@@ -97,14 +97,26 @@ label.f.miss .chips{border-color:var(--err);background:#fff8f7}
 .chips .ch.lib{background:#f1ece0;color:#57534e}
 .chips .ch .n{font-family:'IBM Plex Mono',monospace;font-size:11px;opacity:.7}
 .chips .ch button{border:0;background:rgba(0,0,0,.08);border-radius:999px;width:22px;height:22px;cursor:pointer;font-size:14px;line-height:1}
-.chips::after{content:'▾';position:absolute;right:10px;top:12px;color:var(--dim);pointer-events:none;font-size:13px}
-.chips{padding-right:26px!important}
+.chips{padding-right:96px!important}
+.chips .tog{position:absolute;right:5px;top:5px;min-height:32px;padding:4px 10px;border:1px solid var(--pri);border-radius:6px;background:#fff;color:var(--pri);font:600 13px 'IBM Plex Sans',sans-serif;cursor:pointer}
+.chips .tog.on{background:var(--pri);color:#fff}
 .chips input{border:0!important;outline:0;min-height:30px!important;padding:2px 4px!important;flex:1 1 140px;width:auto!important;background:transparent!important}
 .sugg{position:absolute;left:-1px;right:-1px;top:100%;z-index:15;background:#fff;border:1px solid #cfc6b4;border-radius:0 0 6px 6px;box-shadow:0 6px 16px rgba(0,0,0,.12);max-height:260px;overflow:auto}
 .sugg div{padding:8px 10px;cursor:pointer;font-size:14px;font-weight:400;color:var(--ink);display:flex;justify-content:space-between;gap:10px}
 .sugg div:hover,.sugg div.on{background:#fdf0d2}
 .sugg small{color:var(--dim)}
 .sugg .nores{cursor:default;color:var(--warn);font-size:13px}.sugg .nores:hover{background:#fff}
+/* aliquote */
+.aq{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fffdf8}
+.aq .frase{font-size:13.5px;color:var(--dim);margin:0 0 6px;line-height:1.35}
+.aq label.al{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line);font-size:14px;font-weight:400;cursor:pointer}
+.aq label.al input{width:20px;height:20px;accent-color:var(--pri);flex:none}
+.aq .prev{margin-left:auto;font-size:11px;background:#e3efe9;color:var(--ok);border-radius:10px;padding:2px 8px}
+.aq .altre{margin-top:10px;border:2px dashed #c99a2e;border-radius:10px;padding:8px 10px;display:flex;gap:10px;align-items:center;background:#fff8e6;font-size:14px;cursor:pointer}
+.aq .altre input{width:20px;height:20px;accent-color:#8a5a00;flex:none}
+.pill{display:inline-block;background:#fff8e6;color:var(--warn);border:1px solid #e9c97a;border-radius:10px;padding:1px 8px;font-size:12px;font-weight:700}
+.aqris{font-size:12.5px;color:var(--pri);font-weight:600;margin-top:2px}
+.perc{margin-top:6px;font-size:13px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .hint{font-size:12px;font-weight:400;color:var(--dim)}
 .bar{height:8px;background:#e8e1d2;border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--pri)}
 .bar.over i{background:var(--err)}.bar.near i{background:var(--accent)}
@@ -128,7 +140,8 @@ ul.clean{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;g
   table.griglia th:first-child,table.griglia td:first-child{position:sticky;left:0;background:var(--card);z-index:1;box-shadow:1px 0 0 var(--line)}
   table.griglia thead th:first-child{background:#efe9dc}
   table.rows:not(.griglia) td[data-l]::before{content:attr(data-l) ': ';font-weight:600;color:var(--label);font-size:12px}
-  table.rows:not(.griglia) td.act{text-align:left;padding-top:6px}
+  table.rows:not(.griglia) td.act{text-align:left;padding-top:6px;white-space:normal;display:flex!important;flex-wrap:wrap;gap:6px}
+  table.rows:not(.griglia) td.vu{display:none}
 }
 </style>
 </head>
@@ -139,7 +152,7 @@ ul.clean{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;g
 var API = (window.PDS_CONFIG && window.PDS_CONFIG.API_URL) || '';
 var S = { token: null, utente: null, liste: null, sett: null, vista: 'compila', giorno: null, ed: null, msg: null };
 var GIORNI = { LUN: 'Lunedì', MAR: 'Martedì', MER: 'Mercoledì', GIO: 'Giovedì', VEN: 'Venerdì', SAB: 'Sabato' };
-var CAMPI = ['uoc','auto','loc','guida','aff','art','eq','cdc','p','r','mat','n','tipo'];
+var CAMPI = ['uoc','auto','loc','guida','aff','art','eq','cdc','p','r','mat','n','tipo','aliq'];
 
 function $(id){ return document.getElementById(id); }
 function esc(t){ return String(t == null ? '' : t).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -176,6 +189,7 @@ function ruolo(){ return S.utente ? S.utente.ruolo : ''; }
 function puoCompilare(){ return ['COMPILATORE','DIRIGENTE','ADMIN'].indexOf(ruolo()) !== -1; }
 function isDir(){ return ruolo() === 'DIRIGENTE' || ruolo() === 'ADMIN'; }
 function isAdmin(){ return ruolo() === 'ADMIN'; }
+function isLab(){ return !!((S.utente && S.utente.lab) || (S.sett && S.sett.lab)); }
 function puoModificare(){ var p = F() && F().programma; return puoCompilare() && !(p && p.archivio && !p.modificabile && !isAdmin()); }
 
 // ---------------- avvio / login ----------------
@@ -245,12 +259,7 @@ function caricaComuni(){
 function caricaTutto(){
   Promise.all([api('liste'), api('settimana'), caricaComuni()]).then(function(r){
     S.liste = r[0]; S.sett = r[1];
-    S.vista = ls('pds_vista') || 'compila';
-    if ((S.vista === 'approva' || S.vista === 'avvisi') && !isDir()) S.vista = 'dash';
-    if (S.vista === 'admin' && !isAdmin()) S.vista = 'dash';
-    if (S.vista === 'archvista') S.vista = 'archivio';
-    if (ruolo() === 'TUTTI' && S.vista === 'compila') S.vista = 'dash';
-    if (!ls('pds_vista') && ruolo() === 'TUTTI') S.vista = 'dash';
+    S.vista = 'dash';   // l'app si apre sempre sulla Dashboard (o sulla pagina indicata dalla notifica)
     leggiHash();
     disegna();
     rinnovaPush();
@@ -285,7 +294,7 @@ function nuovaFuori(prefill){
   api('archivio').then(function(a){
     var mod = a.filter(function(x){ return x.modificabile; });
     if (!mod.length) return toast('Nessun programma approvato modificabile (si può aggiungere fino al sabato della sua settimana).');
-    var apri = function(n){ apriArchivio(n, function(){ apriEditor({ giorno: primoGiorno(), sede: sedeUtente(), dati: Object.assign({}, prefill || {}) }); }); };
+    var apri = function(n){ apriArchivio(n, function(){ apriFuori(prefill); }); };
     if (mod.length === 1) return apri(Number(mod[0].numero));
     var d = document.createElement('div'); d.className = 'spin';
     d.innerHTML = '<div class="card" style="max-width:460px;width:calc(100% - 32px);color:var(--ink);font-weight:400"><h2>A quale programma aggiungi l\'uscita?</h2><ul class="clean">' +
@@ -296,6 +305,92 @@ function nuovaFuori(prefill){
     d.querySelectorAll('[data-np]').forEach(function(b){ b.onclick = function(){ d.remove(); apri(Number(b.dataset.np)); }; });
   }).catch(function(e){ toast(e.message); });
 }
+
+var ALERT_FP = 'La presente uscita dovrà prima essere approvata dal dirigente. Se supera il limite dei campioni sarà annullata (salvo approvazione del responsabile di laboratorio).';
+function apriFuori(prefill, giorno, sede){
+  alert(ALERT_FP);
+  apriEditor({ giorno: giorno || (S.giorno && S.giorno !== 'TUTTI' ? S.giorno : primoGiorno()), sede: sede || sedeUtente(), dati: Object.assign({}, prefill || {}) });
+}
+
+// ---------------- aliquote ----------------
+// testo salvato: "C-CHIMICA DI BASE; B-MICROBIOLOGIA; + ALTRE AL CAMPIONAMENTO" oppure "DA DEFINIRE AL CAMPIONAMENTO"
+var AQ_TUTTE = 'DA DEFINIRE AL CAMPIONAMENTO', AQ_ALTRE = '+ ALTRE AL CAMPIONAMENTO';
+function tipoObj(mat, tipo){ return tipiDi(mat).filter(function(x){ return x.tipo === tipo; })[0] || null; }
+function aqDa(t, conf){
+  t = String(t || '').trim();
+  if (t === AQ_TUTTE) return { sel: [], altre: false, tutte: true, conf: !!conf };
+  var v = t ? t.split(';').map(function(x){ return x.trim(); }).filter(String) : [];
+  var altre = v.indexOf(AQ_ALTRE) !== -1;
+  return { sel: v.filter(function(x){ return x !== AQ_ALTRE; }), altre: altre, tutte: false, conf: !!conf };
+}
+function aqPredef(t){ return { sel: (t ? t.aliquote : []).filter(function(a){ return a.def; }).map(function(a){ return a.nome; }), altre: false, tutte: false, conf: false }; }
+function aqStr(a){ if (a.tutte || (!a.sel.length && a.altre)) return AQ_TUTTE; return a.sel.concat(a.altre ? [AQ_ALTRE] : []).join('; '); }
+function bello(x){ var m = String(x).match(/^([A-Z0-9]+-)(.*)$/); var r = m ? m[2] : String(x); r = r.charAt(0) + r.slice(1).toLowerCase(); return (m ? m[1] : '') + r; }
+function aqTesto(t){
+  t = String(t || '').trim(); if (!t) return '';
+  if (t === AQ_TUTTE) return '<span class="pill">Aliquote da decidere al campionamento</span>';
+  var a = aqDa(t);
+  return '<span>' + esc(a.sel.map(bello).join(' · ')) + '</span>' + (a.altre ? ' <span class="pill">+ altre al campionamento</span>' : '');
+}
+// riquadro con le caselle; pre = prefisso degli id (editor / finestra)
+function aqHtml(t, a, pre){
+  if (!t) return '';
+  if (t.noCampioni) return '<div class="hint">Nessun campione previsto per questo tipo di intervento.</div>';
+  if (!t.aliquote.length) return '';
+  if (a.conf) return '<div class="aq"><div class="row" style="justify-content:space-between"><b style="font-size:13px;color:var(--label)">ALIQUOTE</b><button type="button" class="btn small" id="' + pre + 'aqmod">✎ Modifica</button></div><div class="aqris">' + aqTesto(aqStr(a)) + '</div></div>';
+  var conDef = t.aliquote.some(function(x){ return x.def; });
+  var h = '<div class="aq"><p class="frase">' + (conDef ? 'Sono già spuntate le aliquote previste per <b>«' + esc(t.tipo) + '»</b>. Togli o aggiungi quelle che servono.' : 'Per <b>«' + esc(t.tipo) + '»</b> non ci sono aliquote previste: spunta quelle che servono, oppure decidile al campionamento.') + '</p>';
+  t.aliquote.forEach(function(x, i){ h += '<label class="al"><input type="checkbox" data-aq="' + i + '"' + (a.sel.indexOf(x.nome) !== -1 ? ' checked' : '') + '>' + esc(x.nome) + (x.def ? '<span class="prev">prevista</span>' : '') + '</label>'; });
+  h += '<label class="altre"><input type="checkbox" id="' + pre + 'aqaltre"' + (a.altre ? ' checked' : '') + '><span><b>Altre da decidere al campionamento</b><br><span class="hint">Se sul posto servono altre aliquote, si aggiungono lì.</span></span></label>';
+  h += '<div class="row" style="margin-top:10px"><button type="button" class="btn pri" id="' + pre + 'aqok">Conferma aliquote</button><button type="button" class="btn" id="' + pre + 'aqtutte">Tutte da decidere al campionamento</button></div></div>';
+  return h;
+}
+// collega le caselle; fatto(a) viene chiamato a ogni conferma/modifica
+function aqCollega(box, t, a, pre, fatto){
+  if (!box || !t) return;
+  box.querySelectorAll('[data-aq]').forEach(function(c){ c.onchange = function(){ var n = t.aliquote[Number(c.dataset.aq)].nome; a.sel = a.sel.filter(function(x){ return x !== n; }); if (c.checked) a.sel = t.aliquote.map(function(x){ return x.nome; }).filter(function(x){ return x === n || a.sel.indexOf(x) !== -1; }); }; });
+  var al = $(pre + 'aqaltre'); if (al) al.onchange = function(){ a.altre = this.checked; };
+  var ok = $(pre + 'aqok'); if (ok) ok.onclick = function(){ a.tutte = !a.sel.length; a.conf = true; fatto(a); };
+  var tu = $(pre + 'aqtutte'); if (tu) tu.onclick = function(){ a.sel = []; a.altre = false; a.tutte = true; a.conf = true; fatto(a); };
+  var md = $(pre + 'aqmod'); if (md) md.onclick = function(){ a.conf = false; a.tutte = false; fatto(a); };
+}
+function serveTipo(r){
+  if (!r.mat || !(Number(r.n) > 0) || !tipiDi(r.mat).length) return false;
+  var t = tipoObj(r.mat, r.tipo);
+  return !t || (t.aliquote.length > 0 && !r.aliq);
+}
+// righe già salvate senza tipo / aliquote: si completano senza revisione
+function apriTipoAliquote(numero, r, dopo){
+  var d = document.createElement('div'); d.className = 'spin';
+  var st = { tipo: r.tipo || '', a: r.aliq ? aqDa(r.aliq, false) : aqPredef(tipoObj(r.mat, r.tipo)) };
+  var dis = function(){
+    var t = tipoObj(r.mat, st.tipo);
+    d.innerHTML = '<div class="card" style="max-width:480px;width:calc(100% - 32px);max-height:88vh;overflow:auto;color:var(--ink);font-weight:400"><h2>Tipo di intervento e aliquote</h2>' +
+      '<p style="margin:0 0 10px;font-size:14px"><b>' + esc(r.loc) + '</b> · ' + esc(r.mat) + ' · ' + esc(r.n) + ' campioni</p>' +
+      '<label class="f">Tipo di intervento<select id="tasel">' + opz(tipiDi(r.mat).map(function(x){ return x.tipo; }), st.tipo) + '</select></label>' +
+      '<div id="taaq" style="margin-top:10px">' + aqHtml(t, st.a, 'ta') + '</div>' +
+      '<p class="hint">Sono dati per il laboratorio e i verbali: non cambiano il programma stampato e non creano una revisione.</p>' +
+      '<div class="row"><button class="btn pri" id="taok"' + (t && (!t.aliquote.length || st.a.conf) ? '' : ' disabled') + '>Salva</button><button class="btn" id="tano">Annulla</button></div></div>';
+    $('tasel').onchange = function(){ st.tipo = this.value; st.a = aqPredef(tipoObj(r.mat, st.tipo)); dis(); };
+    aqCollega(d, t, st.a, 'ta', function(){ dis(); });
+    $('tano').onclick = function(){ d.remove(); };
+    $('taok').onclick = function(){
+      api('tipoAliquote', { numero: numero, id: r.id, tipo: st.tipo, aliq: t && t.aliquote.length ? aqStr(st.a) : '' }).then(function(){ d.remove(); toast('Tipo e aliquote salvati'); if (dopo) dopo(); }).catch(function(e){ toast(e.message); });
+    };
+  };
+  document.body.appendChild(d); dis();
+}
+
+// ---------------- percorso (Google Maps) ----------------
+var SEDI_MAPPA = { CB: 'Campobasso, CB, Italia', IS: 'Isernia, IS, Italia', TE: 'Termoli, CB, Italia', TERMOLI: 'Termoli, CB, Italia' };
+function sedeMappa(sede){ var k = wa_sede(sede).replace(/^SEDE\s+/, ''); return SEDI_MAPPA[k] || 'Campobasso, CB, Italia'; }
+function tappaQ(x){ var c = cercaComune(x); return c ? c[0] + ', ' + c[1] + ', Italia' : x + ', Italia'; }
+function tappeDaLoc(loc){ var d = { loc: loc }; preparaChips(d); return d._tappe; }
+function urlMappa(sede, tappe){
+  var o = encodeURIComponent(sedeMappa(sede));
+  return 'https://www.google.com/maps/dir/?api=1&origin=' + o + '&destination=' + o + '&travelmode=driving' + (tappe.length ? '&waypoints=' + encodeURIComponent(tappe.map(tappaQ).join('|')) : '');
+}
+function tastoMappa(sede, loc){ var t = tappeDaLoc(loc); return t.length ? '<a class="btn small" target="_blank" rel="noopener" href="' + esc(urlMappa(sede, t)) + '">🗺 Mappa</a>' : ''; }
 
 // ---------------- tipo di intervento e verbali ----------------
 function tipiDi(mat){ return ((S.liste && S.liste.tipi) || []).filter(function(t){ return t.mat === mat; }); }
@@ -355,12 +450,13 @@ function scaricaVerbali(mat, tipo, n){
 function disegna(){
   var voci = ruolo() === 'TUTTI' ? [['dash','Le mie uscite'],['notifiche','Notifiche'],['archivio','Archivio']] : [['dash','Dashboard'],['compila','In compilazione'],['notifiche','Notifiche'],['archivio','Archivio']];
   if (isDir()) { voci.splice(3, 0, ['approva','Approvazione']); voci.push(['avvisi','Avvisi']); }
+  if (isLab() || isAdmin()) voci.push(['limiti','Limiti']);
   if (isAdmin()) voci.push(['admin','Amministrazione']);
   var u = S.utente;
   $('app').innerHTML =
     '<header class="top"><div class="in"><div class="brand">PdS<span>·</span>ARPA Molise</div><nav class="menu" aria-label="Menu principale">' +
-    voci.map(function(v){ return '<button data-v="' + v[0] + '" class="' + (S.vista === v[0] || (S.vista === 'archvista' && v[0] === 'archivio') ? 'on' : '') + '">' + v[1] + (v[0] === 'notifiche' ? '<span class="badge" id="nbadge" style="display:none"></span>' : '') + (v[0] === 'avvisi' ? '<span class="badge" id="abadge" style="display:none"></span>' : '') + '</button>'; }).join('') +
-    '</nav><div class="who"><span>' + esc(u.nome || u.username) + ' · ' + esc(u.ruolo.toLowerCase()) + '</span><button id="bacc">Account</button><button id="besc">Esci</button></div></div></header><main id="main"></main>';
+    voci.map(function(v){ return '<button data-v="' + v[0] + '" class="' + (S.vista === v[0] || (S.vista === 'archvista' && v[0] === 'archivio') ? 'on' : '') + '">' + v[1] + (v[0] === 'notifiche' ? '<span class="badge" id="nbadge" style="display:none"></span>' : '') + (v[0] === 'avvisi' ? '<span class="badge" id="abadge" style="display:none"></span>' : '') + (v[0] === 'limiti' ? '<span class="badge" id="lbadge" style="display:none"></span>' : '') + '</button>'; }).join('') +
+    '</nav><div class="who"><span>' + esc(u.nome || u.username) + ' · ' + esc(u.ruolo.toLowerCase()) + (isLab() ? ' + resp. lab' : '') + '</span><button id="bacc">Account</button><button id="besc">Esci</button></div></div></header><main id="main"></main>';
   document.querySelectorAll('nav.menu button').forEach(function(b){ b.onclick = function(){
     if (S.ed && Object.keys(S.ed.dati || {}).some(function(k){ var v = S.ed.dati[k]; return k.charAt(0) !== '_' && v; }) && !confirm('L\'uscita aperta non è salvata. Chiuderla?')) return;
     S.vista = b.dataset.v; ls('pds_vista', S.vista); S.msg = null; S.ed = null; S.arch = null;
@@ -374,7 +470,7 @@ function disegna(){
   $('bacc').onclick = function(){ S.vista = 'account'; disegna(); };
   aggiornaBadge();
   if (S.vista !== 'archvista') S.arch = null;
-  ({ dash: vDash, notifiche: vNotifiche, avvisi: vAvvisi, compila: vCompila, archvista: vCompila, approva: function(){ var n = S.approvaNum; S.approvaNum = null; vApprova(n || undefined); }, archivio: vArchivio, admin: vAdmin, account: vAccount }[S.vista] || vCompila)();
+  ({ dash: vDash, notifiche: vNotifiche, avvisi: vAvvisi, limiti: vLimiti, compila: vCompila, archvista: vCompila, approva: function(){ var n = S.approvaNum; S.approvaNum = null; vApprova(n || undefined); }, archivio: vArchivio, admin: vAdmin, account: vAccount }[S.vista] || vCompila)();
 }
 
 // pallini rossi: menu Notifiche, menu Avvisi (dirigente) e icona dell'app
@@ -383,7 +479,7 @@ function aggiornaBadge(){
   var c = S.sett.contatori || { notifiche: S.sett.notifiche || 0 };
   if (S.sett.notifiche !== undefined) c.notifiche = S.sett.notifiche;
   var metti = function(id, n){ var b = $(id); if (!b) return; b.textContent = n > 99 ? '99+' : (n || ''); b.style.display = n ? '' : 'none'; };
-  metti('nbadge', c.notifiche || 0); metti('abadge', c.avvisi || 0);
+  metti('nbadge', c.notifiche || 0); metti('abadge', c.avvisi || 0); metti('lbadge', c.limiti || 0);
   try { if (navigator.setAppBadge) { if (c.notifiche) navigator.setAppBadge(c.notifiche); else navigator.clearAppBadge(); } } catch (e) {}
 }
 function aggiornaContatori(){
@@ -392,6 +488,7 @@ function aggiornaContatori(){
     var prima = S.sett.notifiche;
     S.sett.contatori = c; S.sett.notifiche = c.notifiche; aggiornaBadge();
     if (S.vista === 'notifiche' && prima !== c.notifiche && !document.querySelector('[id^=asnota]')) vNotifiche();
+    if (S.vista === 'limiti' && c.limiti !== S.limitiN) vLimiti();
   }).catch(function(){});
 }
 if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', function(e){ if (e.data && e.data.tipo === 'push') setTimeout(aggiornaContatori, 1500); });
@@ -413,13 +510,15 @@ function vCompila(){
   if (!S.giorno) S.giorno = 'TUTTI';
   var h = intestazione(p.archivio ? 'Programma approvato' : 'Settimana in compilazione');
   if (p.archivio) h += '<div class="row" style="margin:-4px 0 14px"><button class="btn small" id="barch">← Torna all\'archivio</button>' +
-    (p.modificabile ? '<span style="font-size:13px;color:var(--dim)">Le <b>uscite fuori programma</b> sono valide subito (codici assegnati, equipaggio avvisato) e il dirigente le approva dalla notifica o da «Approvazione». Modifiche e annullamenti formano la <b>Rev.' + (p.revApprovata + 1) + '</b> da approvare in "Approvazione".</span>'
+    (p.modificabile ? '<span style="font-size:13px;color:var(--dim)">Le <b>uscite fuori programma</b> restano <b>in attesa</b> finché il dirigente non le approva (dalla notifica o da «Approvazione»): solo allora l\'equipaggio viene avvisato. Modifiche e annullamenti formano la <b>Rev.' + (p.revApprovata + 1) + '</b> da approvare in "Approvazione".</span>'
       : '<span class="chip warn">Settimana finita: solo consultazione</span>') + '</div>';
   if (p.archivio && p.modificabile) {
     h += '<div class="row" style="margin-bottom:14px"><button class="btn pri" id="bnuova">+ Uscita fuori programma</button></div>';
+  } else if (puoModificare() && !p.archivio && p.approvato) {
+    // programma approvato: si aggiungono solo uscite fuori programma (fino al sabato)
+    h += '<div class="row" style="margin-bottom:14px"><button class="btn pri" id="bfuoriC">+ Uscita fuori programma</button><span style="font-size:13px;color:var(--dim)">Il programma è approvato: le nuove uscite sono fuori programma e vanno approvate dal dirigente.</span></div>';
   } else if (puoModificare() && !p.archivio) {
-    h += '<div class="row" style="margin-bottom:14px"><button class="btn pri" id="bnuova">+ Nuova uscita</button>' +
-      (p.approvato && !p.archivio ? '<span style="font-size:13px;color:var(--dim)">Il programma è approvato: ogni modifica crea la revisione da far approvare al dirigente.</span>' : '') + '</div>';
+    h += '<div class="row" style="margin-bottom:14px"><button class="btn pri" id="bnuova">+ Nuova uscita</button></div>';
   }
   if (!p.archivio) h += bannerPush();
   h += '<div id="edbox"></div>';
@@ -436,7 +535,7 @@ function vCompila(){
       h += '<div class="sede">' + esc(b.sede) + '</div>';
       var bz = miei.filter(function(x){ return x.giorno === g.key && wa_sede(x.sede) === wa_sede(b.sede); });
       if (!b.righe.length && !bz.length) { h += '<div class="empty">Nessuna uscita.</div>'; return; }
-      h += '<div class="tw"><table class="rows"><thead><tr><th>Stato</th><th>UOC</th><th>Auto</th><th>Località</th><th>Guida</th><th>Affidatario</th><th>Equipaggio / note</th><th>CdC</th><th>Orari</th><th>Matrice</th><th>N.</th><th>Codici</th><th>Salvata da</th><th></th></tr></thead><tbody>';
+      h += '<div class="tw"><table class="rows"><thead><tr><th>Stato</th><th>UOC</th><th>Auto</th><th>Località</th><th>Guida</th><th>Affidatario</th><th>Equipaggio / note</th><th>CdC</th><th>Matrice</th><th>N.</th><th>Codici</th><th>Salvata da</th><th></th></tr></thead><tbody>';
       b.righe.forEach(function(r){ h += rigaHtml(r, g.key, b.sede); });
       bz.forEach(function(x){ h += rigaBozza(x); });
       h += '</tbody></table></div>';
@@ -446,7 +545,10 @@ function vCompila(){
   $('main').innerHTML = h;
   collegaBannerPush();
   if ($('barch')) $('barch').onclick = function(){ S.arch = null; S.ed = null; S.vista = 'archivio'; disegna(); };
-  if ($('bnuova')) $('bnuova').onclick = function(){ apriEditor({ giorno: S.giorno !== 'TUTTI' ? S.giorno : primoGiorno(), sede: sedeUtente(), dati: {} }); };
+  if ($('bnuova')) $('bnuova').onclick = function(){ if (p.archivio) return apriFuori({}); apriEditor({ giorno: S.giorno !== 'TUTTI' ? S.giorno : primoGiorno(), sede: sedeUtente(), dati: {} }); };
+  if ($('bfuoriC')) $('bfuoriC').onclick = function(){ nuovaFuori(); };
+  document.querySelectorAll('[data-dup]').forEach(function(b){ b.onclick = function(){ duplica(Number(b.dataset.dup)); }; });
+  document.querySelectorAll('[data-taq]').forEach(function(b){ b.onclick = function(){ var t = trovaRiga(Number(b.dataset.taq)); if (t) apriTipoAliquote(p.numero, t.r, function(){ ricaricaF(); }); }; });
   document.querySelectorAll('.days button').forEach(function(b){ b.onclick = function(){ S.giorno = b.dataset.g; vCompila(); }; });
   document.querySelectorAll('[data-bozza]').forEach(function(b){ b.onclick = function(){ var bz = miei.filter(function(x){ return x.id === b.dataset.bozza; })[0]; apriEditor({ bozzaId: bz.id, giorno: bz.giorno, sede: bz.sede, dati: bz.dati || {} }); }; });
   document.querySelectorAll('[data-sblocca]').forEach(function(b){ b.onclick = function(){ sblocca(Number(b.dataset.sblocca)); }; });
@@ -462,10 +564,10 @@ function wa_sede(x){ return String(x || '').trim().toUpperCase(); }
 function rigaBozza(b){
   var d = b.dati || {};
   var vecchia = (Date.now() - dataIt(b.creata)) > 48 * 3600 * 1000;
-  var c = function(k, l){ return '<td data-l="' + l + '">' + esc(d[k] || '') + '</td>'; };
+  var c = function(k, l){ return '<td data-l="' + l + '"' + (d[k] ? '' : ' class="vu"') + '>' + esc(d[k] || '') + '</td>'; };
   return '<tr class="r-bozza"><td><span class="chip ' + (vecchia ? 'err' : 'warn') + '">' + (vecchia ? 'Bozza ferma da 48 ore' : 'Bozza') + '</span></td>' +
     c('uoc', 'UOC') + c('auto', 'Auto') + '<td data-l="Località"><b>' + esc(d.loc || '(senza località)') + '</b></td>' + c('guida', 'Guida') + c('aff', 'Affidatario') + c('eq', 'Equipaggio') + c('cdc', 'CdC') +
-    '<td data-l="Orari" class="mono">' + esc(d.p || '') + (d.r ? '–' + esc(d.r) : '') + '</td>' + c('mat', 'Matrice') + '<td data-l="N." class="mono">' + esc(d.n || '') + '</td><td data-l="Codici" class="hint">non assegnati</td>' +
+    c('mat', 'Matrice') + '<td data-l="N." class="mono">' + esc(d.n || '') + '</td><td data-l="Codici" class="hint">non assegnati</td>' +
     '<td data-l="Bozza di" style="font-size:12px;color:var(--dim)">' + esc(b.autore) + '<br>' + esc(b.aggiornata) + '</td>' +
     '<td class="act">' + (b.mia || isAdmin() ? '<button class="btn small pri" data-bozza="' + esc(b.id) + '">Riprendi</button>' : '') + '</td></tr>';
 }
@@ -480,7 +582,9 @@ function rigaHtml(r, giorno, sede){
   else if (r.mancanti && r.mancanti.length) chip = '<span class="chip err" title="Mancano: ' + esc(r.mancanti.join(', ')) + '">Da completare</span>';
   else chip = '<span class="chip warn" title="Completa ma non ancora salvata dall\'app">Da salvare</span>';
   if (r.rev && r.modifica && r.stato !== 'Annullata') chip += ' <span class="chip ' + (r.modifica === 'AGGIUNTA' ? 'add' : 'mod') + '">Rev.' + r.rev + '</span>';
-  if (r.fuori) chip += ' <span class="chip warn">Fuori programma</span>';
+  if (r.fuori) chip += ' <span class="chip warn">Fuori programma' + (r.attesa ? ' · in attesa del dirigente' : '') + '</span>';
+  if (/^IN ATTESA/.test(r.sfora || '')) chip += ' <span class="chip err" title="' + esc(r.sfora) + '">Limite superato · in attesa resp. lab</span>';
+  else if (/^APPROVATO/.test(r.sfora || '')) chip += ' <span class="chip ok" title="' + esc(r.sfora) + '">Limite superato · approvato dal lab</span>';
   chip += chipEsito(r.esito);
   var prec = r.precedenti || {};
   function cel(k, v){ var vv = v === undefined ? r[k] : v; if (k === 'cod') vv = String(vv || '').replace(/-/g, '\u2011'); var cambiato = r.modifica === 'MODIFICATA' && prec[k] !== undefined && String(prec[k]) !== String(r[k]); return esc(vv) + (cambiato ? '<div style="font-size:11.5px;color:#7a6400"><s>' + esc(prec[k] || '—') + '</s></div>' : ''); }
@@ -490,11 +594,14 @@ function rigaHtml(r, giorno, sede){
     else az += '<button class="btn small" data-sblocca="' + r.riga + '">Sblocca e modifica</button> ';
     az += '<button class="btn small err" data-elimina="' + r.riga + '">' + (p.approvato && !(r.modifica === 'AGGIUNTA' && r.rev > p.revApprovata) ? 'Annulla' : 'Svuota') + '</button>';
   }
+  if (r.stato !== 'Annullata' && (p.archivio ? p.modificabile : puoModificare())) az += ' <button class="btn small" data-dup="' + r.riga + '" title="Nuova uscita con gli stessi dati: matrice, tipo e numero di campioni da scegliere">⧉ Duplica</button>';
+  if (r.stato !== 'Annullata' && puoModificare() && serveTipo(r)) az += ' <button class="btn small warn" data-taq="' + r.riga + '">Scegli tipo e aliquote</button>';
   if (p.archivio && r.oggi && isDir() && r.stato !== 'Annullata' && !/^(ANNULLATA|DA RIPROGRAMMARE|RINVIATA)/.test(r.esito || '')) az += ' <button class="btn small err" data-esarch="' + esc(r.id) + '">⛔ Non si fa</button>';
-  return '<tr class="' + cls + '"><td>' + chip + '</td><td data-l="UOC">' + cel('uoc') + '</td><td data-l="Auto">' + cel('auto') + '</td><td data-l="Località"><b>' + cel('loc') + '</b></td>' +
-    '<td data-l="Guida">' + cel('guida') + '</td><td data-l="Affidatario">' + cel('aff') + '</td><td data-l="Equipaggio">' + cel('eq') + '</td><td data-l="CdC">' + cel('cdc') + '</td>' +
-    '<td data-l="Orari" class="mono">' + esc(r.p) + (r.r ? '–' + esc(r.r) : '') + '</td><td data-l="Matrice">' + cel('mat') + (r.tipo ? '<div class="hint">' + esc(r.tipo) + '</div>' : '') + '</td><td data-l="N." class="mono">' + cel('n') + '</td>' +
-    '<td data-l="Codici" class="mono" style="font-size:12px;font-weight:700">' + cel('cod') + '</td><td data-l="Salvata da" style="font-size:12px;color:var(--dim)">' + esc(r.chi) + (r.quando ? '<br>' + esc(r.quando) : '') + '</td><td class="act">' + az + (r.stato !== 'Annullata' ? tastoVerbali(r.mat, r.tipo, r.n, true) : '') + '</td></tr>';
+  var vu = function(k){ return r[k] || (prec[k] && r.modifica === 'MODIFICATA') ? '' : ' class="vu"'; };   // campi vuoti: nascosti sul telefono
+  return '<tr class="' + cls + '"><td>' + chip + '</td><td data-l="UOC"' + vu('uoc') + '>' + cel('uoc') + '</td><td data-l="Auto"' + vu('auto') + '>' + cel('auto') + '</td><td data-l="Località"><b>' + cel('loc') + '</b></td>' +
+    '<td data-l="Guida"' + vu('guida') + '>' + cel('guida') + '</td><td data-l="Affidatario"' + vu('aff') + '>' + cel('aff') + '</td><td data-l="Equipaggio"' + vu('eq') + '>' + cel('eq') + '</td><td data-l="CdC"' + vu('cdc') + '>' + cel('cdc') + '</td>' +
+    '<td data-l="Matrice"' + vu('mat') + '>' + cel('mat') + (r.tipo ? '<div class="hint">' + esc(r.tipo) + '</div>' : '') + (r.aliq ? '<div class="aqris">' + aqTesto(r.aliq) + '</div>' : '') + '</td><td data-l="N." class="mono">' + cel('n') + '</td>' +
+    '<td data-l="Codici" class="mono' + (r.cod ? '' : ' vu') + '" style="font-size:12px;font-weight:700">' + cel('cod') + '</td><td data-l="Salvata da" style="font-size:12px;color:var(--dim)">' + esc(r.chi) + (r.quando ? '<br>' + esc(r.quando) : '') + '</td><td class="act">' + az + (r.stato !== 'Annullata' ? ' ' + tastoMappa(sede, r.loc) + ' ' + tastoVerbali(r.mat, r.tipo, r.n, true) : '') + '</td></tr>';
 }
 
 function dataIt(t){ var m = String(t || '').match(/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/); if (!m) return Date.now(); var d = new Date(); var x = new Date(d.getFullYear(), Number(m[2]) - 1, Number(m[1]), Number(m[3]), Number(m[4])); if (x > d) x.setFullYear(d.getFullYear() - 1); return x.getTime(); }
@@ -523,6 +630,14 @@ function modificaRiga(n){
   apriEditor({ riga: n, giorno: t.giorno, sede: t.sede, dati: d, codici: t.r.cod, nOrig: t.r.n, matOrig: t.r.mat, uocOrig: t.r.uoc });
 }
 
+// ⧉ Duplica: stessa uscita (giorno, sede, località, auto, equipaggio…), matrice / tipo / campioni da scegliere
+function duplica(n){
+  var t = trovaRiga(n); if (!t) return;
+  var d = {}; CAMPI.forEach(function(k){ if (['mat','tipo','n','aliq','p','r'].indexOf(k) === -1) d[k] = t.r[k]; });
+  if (F().programma.archivio || F().programma.approvato) return apriFuori(d, t.giorno, t.sede);
+  apriEditor({ giorno: t.giorno, sede: t.sede, dati: d, duplicata: true });
+}
+
 function eliminaRiga(n){
   var t = trovaRiga(n); if (!t) return;
   var p = F().programma;
@@ -533,7 +648,7 @@ function eliminaRiga(n){
 }
 
 // ---------------- editor uscita ----------------
-function apriEditor(ed){ S.ed = ed; S.ed.errore = null; preparaChips(ed.dati); vCompila(); var box = $('edbox'); if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+function apriEditor(ed){ S.ed = ed; S.ed.errore = null; preparaChips(ed.dati); ed.aq = aqDa(ed.dati.aliq, !!ed.dati.aliq); ed.perc = null; vCompila(); var box = $('edbox'); if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 
 // ---- tappe (comuni) ed equipaggio: più valori ----
 function cercaComune(t){ t = String(t || '').trim().toUpperCase(); if (!t || !COMUNI) return null; for (var i = 0; i < COMUNI.length; i++) if (COMUNI[i][0] === t) return COMUNI[i]; return null; }
@@ -572,11 +687,16 @@ function chipsHtml(id, valori, ph, comuni){
     var c = comuni ? cercaComune(v) : null;
     var lib = comuni ? !c : S.liste.personale.indexOf(v) === -1;
     return '<span class="ch' + (lib ? ' lib' : '') + '" title="' + (lib ? 'testo libero' : '') + '">' + (comuni ? (i + 1) + '. ' : '') + esc(v) + (c ? ' <span class="n">' + esc(c[1]) + '</span>' : '') + '<button type="button" data-del="' + i + '" aria-label="Togli ' + esc(v) + '">×</button></span>';
-  }).join('') + '<input type="text" placeholder="' + esc(ph) + '" autocomplete="off"><div class="sugg hidden"></div></div>';
+  }).join('') + '<input type="text" placeholder="' + esc(ph) + '" autocomplete="off"><button type="button" class="tog">Elenco ▾</button><div class="sugg hidden"></div></div>';
 }
 function collegaChips(id, lista, fonte, comuni){
   var box = $(id); if (!box) return;
-  var inp = box.querySelector('input'), sg = box.querySelector('.sugg'), sel = 0, voci = [];
+  var inp = box.querySelector('input'), sg = box.querySelector('.sugg'), tog = box.querySelector('.tog'), sel = 0, voci = [];
+  // tasto grande: «Elenco ▾» apre, «Chiudi ✕» chiude (sostituisce il triangolino)
+  var segna = function(){ var aperto = !sg.classList.contains('hidden'); tog.textContent = aperto ? 'Chiudi ✕' : 'Elenco ▾'; tog.classList.toggle('on', aperto); };
+  new MutationObserver(segna).observe(sg, { attributes: true, attributeFilter: ['class'] });
+  tog.onmousedown = function(e){ e.preventDefault(); };
+  tog.onclick = function(){ if (sg.classList.contains('hidden')) { inp.focus(); mostra(); } else { sg.classList.add('hidden'); inp.blur(); } };
   box.querySelectorAll('[data-del]').forEach(function(b){ b.onclick = function(){ lista.splice(Number(b.dataset.del), 1); componi(S.ed.dati); disegnaEditor(); focusChips(id); }; });
   function aggiungi(v){ v = String(v || '').trim(); if (!v) return; v = v.toUpperCase(); if (!comuni && S.liste.personale.indexOf(v) === -1) return; if (lista.indexOf(v) === -1 || comuni) lista.push(v); componi(S.ed.dati); disegnaEditor(); focusChips(id); }
   function mostra(){
@@ -629,15 +749,20 @@ function mancanti(d){
   if (con && !d.mat) m.push('mat'); if (con && !d.cdc) m.push('cdc');
   if ((con || (d.auto && d.auto.toUpperCase() !== 'NO AUTO')) && !d.aff) m.push('aff');
   if (d.auto && d.auto.toUpperCase() !== 'NO AUTO' && !d.art) m.push('art');
+  if (con && d.mat && tipiDi(d.mat).length) {
+    var t = tipoObj(d.mat, d.tipo);
+    if (!t) m.push('tipo'); else if (t.aliquote.length && !d.aliq) m.push('aliq');
+  }
   return m;
 }
 var MAX_NOTE = 40;   // note brevi: nel programma stampato devono restare leggibili
-var NOMI = { uoc: 'UOC', auto: 'Auto', loc: 'Località', n: 'Numero campioni (numero o NO)', mat: 'Matrice', cdc: 'Centro di costo', aff: 'Affidatario', art: 'Art. 5' };
+var NOMI = { uoc: 'UOC', auto: 'Auto', loc: 'Località', n: 'Numero campioni (numero o NO)', mat: 'Matrice', cdc: 'Centro di costo', aff: 'Affidatario', art: 'Art. 5', tipo: 'Tipo di intervento', aliq: 'Aliquote (premi «Conferma aliquote»)' };
 
 function disegnaEditor(){
   var ed = S.ed, d = ed.dati, L = S.liste;
   var p = F().programma;
-  var titolo = ed.riga ? 'Modifica uscita' : (ed.bozzaId ? 'Bozza' : (S.arch ? 'Uscita fuori programma' : 'Nuova uscita'));
+  var titolo = ed.riga ? 'Modifica uscita' : (ed.bozzaId ? 'Bozza' : (S.arch ? 'Uscita fuori programma' : (ed.duplicata ? 'Nuova uscita (duplicata)' : 'Nuova uscita')));
+  var tObj = tipoObj(d.mat, d.tipo);
   var mat = L.matrici[d.mat];
   var nNo = String(d.n || '').toUpperCase() === 'NO';
   var m = mancanti(d);
@@ -645,7 +770,7 @@ function disegnaEditor(){
   var giorniOpz = F().giorni.map(function(g){ return { v: g.key, t: g.label }; });
   var bloccaPos = !!(ed.riga && p.approvato);
   var h = '<section class="card editor" style="margin-bottom:18px"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">' + titolo + '</h2>' +
-    '<span style="font-size:12px;color:var(--dim)">' + (S.arch ? (ed.riga ? 'Modifica del programma n. ' + esc(p.numero) + ' approvato: diventa parte della Rev.' + (p.revApprovata + 1) + '.' : 'Programma n. ' + esc(p.numero) + ' approvato: l\'uscita vale subito (codici e notifiche all\'equipaggio); il dirigente la approva (notifica o «Approvazione») nella Rev.' + (p.revApprovata + 1) + '.') : 'La riga va nel foglio solo con "Salva riga". Fino ad allora resta una bozza visibile solo nell\'app.') + '</span></div>' +
+    '<span style="font-size:12px;color:var(--dim)">' + (S.arch ? (ed.riga ? 'Modifica del programma n. ' + esc(p.numero) + ' approvato: diventa parte della Rev.' + (p.revApprovata + 1) + '.' : 'Programma n. ' + esc(p.numero) + ' approvato: l\'uscita resta in attesa finché il dirigente non la approva (Rev.' + (p.revApprovata + 1) + '); solo allora l\'equipaggio viene avvisato.') : 'La riga va nel foglio solo con "Salva riga". Fino ad allora resta una bozza visibile solo nell\'app.') + '</span></div>' +
     (ed.errore ? '<div class="msg err">' + esc(ed.errore) + '</div>' : '') +
     '<div class="fields">' +
     f('giorno', 'Giorno', '<select id="e_giorno"' + (bloccaPos ? ' disabled' : '') + '>' + opz(giorniOpz, ed.giorno, false) + '</select>') +
@@ -653,19 +778,18 @@ function disegnaEditor(){
     f('uoc', 'UOC *', '<select data-k="uoc">' + opz(L.uoc, d.uoc) + '</select>') +
     f('auto', 'Auto *', '<select data-k="auto">' + opz(L.auto.map(function(a){ return { v: a.nome, t: a.nome + (a.sede ? ' (' + a.sede + ')' : '') }; }), d.auto) + '</select>') +
     f('loc', 'Località da raggiungere (tragitto) *', chipsHtml('e_tappe', d._tappe, d._tappe.length ? 'Aggiungi un\'altra tappa…' : 'Scrivi un comune: Molise per primi…', true) +
-      '<span class="hint">Le tappe vanno nell\'ordine del tragitto. Fuori elenco: «Aggiungi come testo libero».</span>', 'loc3') +
+      '<span class="hint">Le tappe vanno nell\'ordine del tragitto. Fuori elenco: «Aggiungi come testo libero».</span>' + percHtml(ed), 'loc3') +
     f('guida', 'Personale guida', '<select data-k="guida">' + opz(L.guide, d.guida) + '</select>') +
     f('aff', 'Personale affidatario', '<select data-k="aff">' + opz(L.personale, d.aff) + '</select>') +
     f('art', 'Art. 5 c.2', '<select data-k="art">' + opz(L.articoli, d.art) + '</select>') +
     f('cdc', 'Centro di costo', '<select data-k="cdc">' + opz(L.cdc.map(function(c){ return { v: c.codice, t: c.codice + (c.descrizione ? ' · ' + c.descrizione : '') }; }), d.cdc) + '</select>', 'wide') +
-    f('p', 'Partenza', '<input data-k="p" type="time" value="' + esc(d.p) + '">') +
-    f('r', 'Rientro', '<input data-k="r" type="time" value="' + esc(d.r) + '">') +
     f('eq', 'Equipaggio', chipsHtml('e_eq', d._eq, 'Aggiungi una persona dall\'elenco…', false) +
       '<span class="hint">Solo le persone scelte dall\'elenco ricevono le notifiche.</span>', 'riga') +
     f('nota', '<span>Note <span class="hint" id="e_notanum">(' + (d._eqNote || '').length + '/' + MAX_NOTE + ' caratteri)</span></span>', '<input id="e_nota" maxlength="' + MAX_NOTE + '" placeholder="Facoltative, brevi: es. CC FOR IS, ASREM, PFAS-ANPA" value="' + esc(d._eqNote) + '">', 'riga') +
     f('mat', 'Matrice', '<select data-k="mat"' + (nNo ? ' disabled' : '') + '>' + opz(Object.keys(L.matrici), d.mat) + '</select>') +
     f('tipo', 'Tipo di intervento', '<select data-k="tipo"' + (nNo || !d.mat ? ' disabled' : '') + '>' + opz(tipiDi(d.mat).map(function(t){ return t.tipo; }), d.tipo) + '</select>' +
       (d.mat && !tipiDi(d.mat).length ? '<span class="hint">Nessun tipo per questa matrice nel foglio TIPO DI INTERVENTO.</span>' : ''), 'wide') +
+    (tObj && !nNo && (tObj.aliquote.length || tObj.noCampioni) ? '<div class="f riga' + (ed.provato && m.indexOf('aliq') !== -1 ? ' miss' : '') + '" id="e_aq">' + aqHtml(tObj, ed.aq, 'e_') + '</div>' : '') +
     f('n', 'Numero campioni *', '<input data-k="n" type="number" min="1" step="1" inputmode="numeric" value="' + (nNo ? '' : esc(d.n)) + '"' + (nNo ? ' disabled' : '') + '><span class="nobox"><input type="checkbox" id="e_no"' + (nNo ? ' checked' : '') + '> Nessun campione (NO)</span>') +
     '</div>' +
     '<datalist id="dl_pers">' + L.personale.map(function(x){ return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
@@ -675,26 +799,67 @@ function disegnaEditor(){
     '<div id="e_manc" style="font-size:13px;margin-top:10px;color:' + (m.length ? 'var(--err)' : 'var(--ok)') + '">' + (m.length ? 'Da completare: ' + m.map(function(k){ return NOMI[k]; }).join(', ') : 'Riga completa: si può salvare.') + '</div>' +
     '<div class="row" style="margin-top:12px"><button class="btn pri" id="e_salva">Salva riga</button>' +
     (!ed.riga && !S.arch ? '<button class="btn" id="e_bozza">Salva bozza</button>' : '') +
-    '<button class="btn warn" id="e_svuota">Svuota riga</button>' +
+    '<button class="btn warn" id="e_svuota">' + (ed.riga ? 'Svuota riga salvata' : 'Svuota campi') + '</button>' +
     (ed.bozzaId ? '<button class="btn err" id="e_delb">Elimina bozza</button>' : '') +
     '<button class="btn" id="e_chiudi">Chiudi</button></div></section>';
   $('edbox').innerHTML = h;
   document.querySelectorAll('#edbox [data-k]').forEach(function(el){
     var ev = el.tagName === 'SELECT' ? 'change' : 'input';
-    el.addEventListener(ev, function(){ d[el.dataset.k] = el.value; if (el.dataset.k === 'mat' && tipiDi(d.mat).every(function(t){ return t.tipo !== d.tipo; })) d.tipo = ''; if (el.dataset.k === 'mat' || el.tagName === 'SELECT') disegnaEditor(); else aggiornaMancanti(); });
+    el.addEventListener(ev, function(){
+      var k = el.dataset.k, prima = d[k]; d[k] = el.value;
+      if (k === 'mat' && tipiDi(d.mat).every(function(t){ return t.tipo !== d.tipo; })) d.tipo = '';
+      // nuovo tipo: si parte dalle aliquote previste (*), da confermare
+      if ((k === 'tipo' && d.tipo !== prima) || (k === 'mat' && d.mat !== prima)) { ed.aq = aqPredef(tipoObj(d.mat, d.tipo)); d.aliq = ''; }
+      if (k === 'mat' || el.tagName === 'SELECT') disegnaEditor(); else aggiornaMancanti();
+    });
   });
+  aqCollega($('e_aq'), tObj, ed.aq, 'e_', function(a){ d.aliq = a.conf ? aqStr(a) : ''; disegnaEditor(); });
+  collegaPerc(ed);
   collegaChips('e_tappe', d._tappe, function(){ return COMUNI || []; }, true);
   collegaChips('e_eq', d._eq, function(){ return S.liste.personale; }, false);
   $('e_nota').oninput = function(){ d._eqNote = this.value.trim(); $('e_notanum').textContent = '(' + this.value.length + '/' + MAX_NOTE + ' caratteri)'; componi(d); };
   $('e_giorno').onchange = function(){ ed.giorno = this.value; };
   $('e_sede').onchange = function(){ ed.sede = this.value; };
-  $('e_no').onchange = function(){ if (this.checked) { d.n = 'NO'; d.mat = ''; d.tipo = ''; } else d.n = ''; disegnaEditor(); };
+  $('e_no').onchange = function(){ if (this.checked) { d.n = 'NO'; d.mat = ''; d.tipo = ''; d.aliq = ''; } else d.n = ''; disegnaEditor(); };
   collegaVerbali();
   $('e_salva').onclick = salvaRiga;
   if ($('e_bozza')) $('e_bozza').onclick = salvaBozza;
-  $('e_svuota').onclick = function(){ if (!confirm('Svuotare tutti i campi?')) return; ed.dati = {}; preparaChips(ed.dati); ed.provato = false; ed.errore = null; disegnaEditor(); };
+  $('e_svuota').onclick = function(){
+    if (ed.riga) {   // riga già salvata: si svuota nel programma (i codici assegnati risultano persi)
+      var t = trovaRiga(ed.riga), pr = F().programma;
+      var annulla = pr.approvato && t && !(t.r.modifica === 'AGGIUNTA' && t.r.rev > pr.revApprovata);
+      if (!confirm(annulla ? 'Il programma è approvato: l\'uscita verrà ANNULLATA (resta visibile barrata nella revisione). Continuare?' : 'Svuotare la riga salvata?' + (ed.codici ? '\nI codici ' + ed.codici + ' risultano persi (restano scritti nel registro).' : ''))) return;
+      var attesa = S.sblocco || Promise.resolve();
+      return attesa.then(function(){ S.sblocco = null; return scrivi(S.arch ? 'archivioAnnulla' : 'svuotaRiga', { riga: ed.riga }); })
+        .then(function(){ toast(annulla ? 'Uscita annullata' : 'Riga svuotata'); S.ed = null; vCompila(); }).catch(function(e){ ed.errore = e.message; disegnaEditor(); });
+    }
+    if (!confirm('Svuotare tutti i campi?')) return; ed.dati = {}; preparaChips(ed.dati); ed.aq = aqDa(''); ed.provato = false; ed.errore = null; disegnaEditor(); };
   if ($('e_delb')) $('e_delb').onclick = function(){ if (!confirm('Eliminare la bozza?')) return; scrivi('eliminaBozza', { id: ed.bozzaId }).then(function(){ S.ed = null; vCompila(); }).catch(function(e){ toast(e.message); }); };
   $('e_chiudi').onclick = function(){ S.ed = null; vCompila(); };
+}
+
+function percHtml(ed){
+  var tp = ed.dati._tappe || [];
+  if (!tp.length) return '';
+  var x = ed.perc && (ed.perc.per === undefined || ed.perc.per === tp.join('|')) ? ed.perc : null, h = '<div class="perc" id="e_perc">';
+  if (x && x.km !== undefined) {
+    var cambia = x.ordine.some(function(v, i){ return v !== i; });
+    h += '<span>Andata e ritorno da ' + esc(sedeMappa(ed.sede).split(',')[0]) + ': <b>' + String(x.km).replace('.', ',') + ' km</b> · circa <b>' + (x.minuti >= 60 ? Math.floor(x.minuti / 60) + ' h ' + (x.minuti % 60) + ' min' : x.minuti + ' min') + '</b></span>' +
+      (cambia ? '<button type="button" class="btn small pri" id="e_ordine">Usa l\'ordine più breve: ' + esc(x.ordine.map(function(i){ return tp[i]; }).join(' → ')) + '</button>' : '<span class="chip ok">ordine già il più breve</span>');
+  } else h += '<button type="button" class="btn small" id="e_calc">🗺 Calcola percorso più breve</button>' + (x && x.errore ? '<span style="color:var(--err)">' + esc(x.errore) + '</span>' : '');
+  return h + '<a class="btn small" target="_blank" rel="noopener" href="' + esc(urlMappa(ed.sede, tp)) + '">Apri in Google Maps</a></div>';
+}
+function collegaPerc(ed){
+  var c = $('e_calc'); if (c) c.onclick = function(){
+    var tp = ed.dati._tappe.slice();
+    api('percorso', { sede: ed.sede, tappe: tp.map(function(x){ return { q: tappaQ(x) }; }) }).then(function(r){ if (S.ed !== ed) return; r.per = tp.join('|'); ed.perc = r; disegnaEditor(); })
+      .catch(function(e){ ed.perc = { errore: e.message }; disegnaEditor(); });
+  };
+  var o = $('e_ordine'); if (o) o.onclick = function(){
+    var tp = ed.dati._tappe, nuovo = ed.perc.ordine.map(function(i){ return tp[i]; });
+    tp.splice.apply(tp, [0, tp.length].concat(nuovo)); componi(ed.dati);
+    ed.perc.ordine = nuovo.map(function(x, i){ return i; }); ed.perc.per = tp.join('|'); disegnaEditor();
+  };
 }
 
 function aggiornaMancanti(){
@@ -704,29 +869,35 @@ function aggiornaMancanti(){
   if (box) { box.style.color = m.length ? 'var(--err)' : 'var(--ok)'; box.textContent = m.length ? 'Da completare: ' + m.map(function(k){ return NOMI[k]; }).join(', ') : 'Riga completa: si può salvare.'; }
 }
 
-function salvaRiga(){
+function salvaRiga(forza){
   var ed = S.ed;
   ed.provato = true;
   var m = mancanti(ed.dati);
   if (m.length) { ed.errore = 'Mancano: ' + m.map(function(k){ return NOMI[k]; }).join(', ') + '.'; return disegnaEditor(); }
-  var payload = { giorno: ed.giorno, sede: ed.sede, riga: ed.riga || 0, bozzaId: ed.bozzaId || '', dati: ed.dati };
+  var payload = { giorno: ed.giorno, sede: ed.sede, riga: ed.riga || 0, bozzaId: ed.bozzaId || '', dati: ed.dati, forza: forza === true };
   var nN = String(ed.dati.n || ''), nO = String(ed.nOrig || '');
-  if (ed.riga && ed.codici && nO && nN !== nO && ed.dati.mat === ed.matOrig && ed.dati.uoc === ed.uocOrig) {
+  if (forza !== true && ed.riga && ed.codici && nO && nN !== nO && ed.dati.mat === ed.matOrig && ed.dati.uoc === ed.uocOrig) {
     var piu = Number(nN) > Number(nO);
     if (!confirm('I campioni passano da ' + nO + ' a ' + (nN || '0') + ': i codici cambiano.\n' + (piu ? 'Si aggiunge il codice successivo se è ancora libero; altrimenti si rigenerano tutti e quelli attuali risultano persi.' : 'Gli ultimi codici di ' + ed.codici + ' risultano persi.') + '\n\nContinuare?')) return;
   }
   var azione = S.arch ? (ed.riga ? 'archivioSalva' : 'fuoriProgramma') : 'salvaRiga';
   var attesa = S.sblocco || Promise.resolve();
   attesa.then(function(){ S.sblocco = null; return scrivi(azione, payload); }).then(function(r){
-    var t = (r.fuori ? 'Uscita fuori programma salvata: è già valida, equipaggio e dirigente avvisati' : 'Riga salvata') + (r.codici ? ' · codici ' + r.codici : '') + (r.persi ? ' · codici persi: ' + r.persi : '');
+    var t = (r.fuori ? 'Uscita fuori programma salvata: in attesa dell\'approvazione del dirigente' : 'Riga salvata') + (r.codici ? ' · codici ' + r.codici : '') + (r.persi ? ' · codici persi: ' + r.persi : '');
+    if (r.limite) t += ' · LIMITE SUPERATO: deve approvarla il responsabile di laboratorio';
     if (r.avvisi && r.avvisi.length) t += ' · ATTENZIONE (admin): ' + r.avvisi.join(' ');
     toast(t);
-    var nuovo = !ed.riga;
-    var g = ed.giorno, s = ed.sede;
-    S.ed = nuovo ? { giorno: g, sede: s, dati: {} } : null;
-    if (S.ed) preparaChips(S.ed.dati);   // dopo il salvataggio si apre una nuova uscita vuota
+    S.ed = null;   // l'editor si chiude: una nuova uscita si apre con «+ Nuova uscita»
     vCompila();
-  }).catch(function(e){ ed.errore = e.message; disegnaEditor(); });
+  }).catch(function(e){
+    var m = String(e.message || '');
+    if (/^LIMITE:/.test(m)) {
+      if (confirm('Attenzione: limite dei campioni superato.\n' + m.replace(/^LIMITE:/, '') + '\n\nSalvare comunque? La riga resterà in attesa del responsabile di laboratorio: se la rifiuta verrà tolta. Finché non decide il programma non si può approvare.')) return salvaRiga(true);
+      ed.errore = 'Limite superato: ' + m.replace(/^LIMITE:/, '') + ' Riduci i campioni o salva comunque (decide il responsabile di laboratorio).';
+      return disegnaEditor();
+    }
+    ed.errore = m; disegnaEditor();
+  });
 }
 
 function salvaBozza(){
@@ -747,13 +918,15 @@ function chipEsito(e){
   return ' <span class="chip err" title="' + esc(e) + '">Annullata' + mot + '</span>';
 }
 var MIE = {};
+function vc(l, v){ return '<td data-l="' + l + '"' + (v ? '' : ' class="vu"') + '>' + esc(v) + '</td>'; }
 function rigaUscita(r){
   var k = r.numero + '|' + r.id; MIE[k] = r;
   var ann = /^(ANNULLATA|DA RIPROGRAMMARE|RINVIATA)/.test(r.esito || '');
   var az = !ann && r.oggi ? '<button class="btn small err" data-esmie="' + esc(k) + '">⛔ Non si fa</button> ' : '';
-  return '<tr><td data-l="Data" class="mono"><b>' + esc(r.data) + '</b>' + (r.fp ? ' <span class="chip warn">Fuori programma</span>' : '') + chipEsito(r.esito) + '</td><td data-l="Giorno">' + esc(r.giornoLabel) + '</td><td data-l="Sede">' + esc(r.sede) + '</td><td data-l="Località"><b>' + esc(r.loc) + '</b></td><td data-l="Orari" class="mono">' + esc(r.p) + (r.r ? '–' + esc(r.r) : '') + '</td><td data-l="Auto">' + esc(r.auto) + '</td><td data-l="Guida">' + esc(r.guida) + '</td><td data-l="Affidatario">' + esc(r.aff) + '</td><td data-l="Equipaggio">' + esc(r.eq) + '</td><td data-l="Matrice">' + esc(r.mat) + (r.tipo ? '<div class="hint">' + esc(r.tipo) + '</div>' : '') + '</td><td data-l="N." class="mono">' + esc(r.n) + '</td><td class="act">' + az + (r.fatta || ann ? '' : tastoVerbali(r.mat, r.tipo, r.n, true)) + '</td></tr>';
+  return '<tr><td data-l="Data" class="mono"><b>' + esc(r.data) + '</b>' + (r.fp ? ' <span class="chip warn">Fuori programma</span>' : '') + chipEsito(r.esito) + '</td><td data-l="Giorno">' + esc(r.giornoLabel) + '</td><td data-l="Sede">' + esc(r.sede) + '</td><td data-l="Località"><b>' + esc(r.loc) + '</b></td>' + vc('Auto', r.auto) + vc('Guida', r.guida) + vc('Affidatario', r.aff) + vc('Equipaggio', r.eq) +
+    '<td data-l="Matrice"' + (r.mat ? '' : ' class="vu"') + '>' + esc(r.mat) + (r.tipo ? '<div class="hint">' + esc(r.tipo) + '</div>' : '') + (r.aliq ? '<div class="aqris">' + aqTesto(r.aliq) + '</div>' : '') + '</td><td data-l="N." class="mono">' + esc(r.n) + '</td><td class="act">' + az + (r.fatta || ann ? '' : tastoMappa(r.sede, r.loc) + ' ' + tastoVerbali(r.mat, r.tipo, r.n, true)) + '</td></tr>';
 }
-var TESTA_USCITE = '<thead><tr><th>Data</th><th>Giorno</th><th>Sede</th><th>Località</th><th>Orari</th><th>Auto</th><th>Guida</th><th>Affidatario</th><th>Equipaggio / note</th><th>Matrice</th><th>N.</th><th></th></tr></thead>';
+var TESTA_USCITE = '<thead><tr><th>Data</th><th>Giorno</th><th>Sede</th><th>Località</th><th>Auto</th><th>Guida</th><th>Affidatario</th><th>Equipaggio / note</th><th>Matrice</th><th>N.</th><th></th></tr></thead>';
 
 function mieHtml(m){
   if (S.mieMese === undefined || S.mieMese === null) S.mieMese = m.meseCorrente;
@@ -793,7 +966,7 @@ function collegaMie(ridisegna){
   if ($('bfuori')) $('bfuori').onclick = function(){ nuovaFuori(); };
   document.querySelectorAll('[data-esmie]').forEach(function(b){ b.onclick = function(){ var r = MIE[b.dataset.esmie]; apriEsito(r.numero, r.id, r.giornoLabel + ' · ' + r.sede + ' · ' + r.loc, ridisegna); }; });
   document.querySelectorAll('[data-ripro]').forEach(function(b){ b.onclick = function(){ var r = MIE[b.dataset.ripro], d = {};
-    ['uoc','auto','loc','guida','aff','art','eq','cdc','p','r','mat','n','tipo'].forEach(function(k){ if (r[k] !== undefined && r[k] !== null) d[k] = String(r[k]); });
+    ['uoc','auto','loc','guida','aff','art','eq','cdc','mat','n','tipo','aliq'].forEach(function(k){ if (r[k] !== undefined && r[k] !== null) d[k] = String(r[k]); });
     nuovaFuori(d); }; });
   collegaVerbali();
   document.querySelectorAll('[data-mese]').forEach(function(b){ b.onclick = function(){ var i = Number(b.dataset.mese); S.mieMese = S.mieMese === i ? -1 : i; ridisegna(); }; });
@@ -938,6 +1111,30 @@ function vAvvisi(){
   }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
 }
 
+// ---------------- limiti superati (responsabile di laboratorio) ----------------
+function vLimiti(){
+  $('main').innerHTML = '<div class="eyebrow">Responsabile di laboratorio</div><h1>Limiti superati</h1><div class="empty">Caricamento…</div>';
+  leggi('limiti', {}, function(x){ if (S.vista !== 'limiti') return;
+    S.limitiN = x.righe.length;
+    if (S.sett) { S.sett.contatori = S.sett.contatori || {}; S.sett.contatori.limiti = x.righe.length; aggiornaBadge(); }
+    var h = '<div class="eyebrow">Responsabile di laboratorio</div><h1>Limiti superati' + (x.righe.length ? ' <span class="badge" style="font-size:14px">' + x.righe.length + '</span>' : '') + '</h1>' +
+      '<p class="hint" style="margin-top:-6px">Uscite salvate oltre i limiti dei campioni (foglio MATRICI). «Approva» le lascia nel programma; «Rifiuta» le toglie (i codici risultano persi) e avvisa chi le ha inserite. Finché ce n\'è una in attesa il programma non si può approvare.</p>';
+    if (!x.righe.length) h += '<div class="msg ok">Nessuna uscita in attesa.</div>';
+    else h += '<section class="card"><div class="tw"><table class="rows"><thead><tr><th>Programma</th><th>Giorno</th><th>Località</th><th>Matrice</th><th>Limite superato</th><th>Inserita da</th><th></th></tr></thead><tbody>' + x.righe.map(function(r){
+      return '<tr><td data-l="Programma" class="mono">n. ' + esc(r.numero) + (r.fuori ? ' <span class="chip warn">Fuori programma</span>' : '') + '</td><td data-l="Giorno">' + esc(GIORNI[r.giorno] || r.giorno) + ' · ' + esc(r.sede) + '</td><td data-l="Località"><b>' + esc(r.loc) + '</b></td>' +
+        '<td data-l="Matrice">' + esc(r.mat) + ' · <b>' + esc(r.n) + '</b></td><td data-l="Limite superato" style="color:var(--err)">' + esc(r.motivo) + '</td><td data-l="Inserita da" style="font-size:12.5px">' + esc(r.chi) + '<br>' + esc(r.quando) + '</td>' +
+        '<td class="act">' + (x.puoDecidere ? '<button class="btn small pri" data-lap="' + esc(r.numero + '|' + r.id) + '">Approva</button> <button class="btn small err" data-lrf="' + esc(r.numero + '|' + r.id) + '">Rifiuta</button>' : '') + '</td></tr>';
+    }).join('') + '</tbody></table></div></section>';
+    $('main').innerHTML = h;
+    var decidi = function(k, esito){ var p = k.split('|');
+      if (esito === 'RIFIUTA' && !confirm('Rifiutare l\'uscita? Verrà tolta dal programma e i codici risulteranno persi.')) return;
+      api('decidiLimite', { numero: Number(p[0]), id: p.slice(1).join('|'), esito: esito }).then(function(){ toast(esito === 'APPROVA' ? 'Approvata' : 'Rifiutata: uscita tolta'); MEMO = {}; aggiornaContatori(); vLimiti(); }).catch(function(e){ toast(e.message); vLimiti(); });
+    };
+    document.querySelectorAll('[data-lap]').forEach(function(b){ b.onclick = function(){ decidi(b.dataset.lap, 'APPROVA'); }; });
+    document.querySelectorAll('[data-lrf]').forEach(function(b){ b.onclick = function(){ decidi(b.dataset.lrf, 'RIFIUTA'); }; });
+  }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
+}
+
 function kpi(l, v){ return '<div class="card kpi"><div class="l">' + esc(l) + '</div><div class="v">' + esc(v) + '</div></div>'; }
 
 // ---------------- approvazione ----------------
@@ -984,7 +1181,7 @@ function vApprova(numero){
     $('main').innerHTML = h;
     if ($('bindietro')) $('bindietro').onclick = function(){ vApprova(); };
     document.querySelectorAll('[data-rif]').forEach(function(b){ b.onclick = function(){
-      if (!confirm('Rifiutare questa uscita fuori programma? Viene tolta, i codici risultano persi e l\'equipaggio riceve «uscita annullata».')) return;
+      if (!confirm('Rifiutare questa uscita fuori programma? Viene tolta, i codici risultano persi e chi l\'ha inserita viene avvisato (l\'equipaggio non era ancora stato avvisato).')) return;
       api('rifiutaFuori', { numero: numero, id: b.dataset.rif }).then(function(){ toast('Uscita rifiutata'); vApprova(numero); }).catch(function(e){ toast(e.message); });
     }; });
     document.querySelectorAll('[data-rev]').forEach(function(b){ b.onclick = function(){ vApprova(Number(b.dataset.rev)); }; });
@@ -1014,7 +1211,7 @@ function vArchivio(){
           '<td class="act"><button class="btn small ' + (x.modificabile ? 'pri' : '') + '" data-apri="' + esc(x.numero) + '">' + (x.modificabile ? (puoCompilare() ? 'Apri e modifica' : 'Apri · aggiungi uscita') : 'Apri') + '</button> ' +
           (isDir() ? '<button class="btn small" data-conf="' + esc(x.numero) + '">Conferme</button> ' : '') + (x.pdf ? '<button class="btn small" data-pdf="' + esc(x.pdf) + '">PDF programma</button> ' : '') + (x.riepilogo ? '<button class="btn small" data-pdf="' + esc(x.riepilogo) + '">PDF riepilogo</button>' : '') + '</td></tr>';
       }).join('') : '<tr><td colspan="6" class="empty">Nessun programma approvato.</td></tr>') + '</tbody></table></div></section>' +
-      '<p style="font-size:13px;color:var(--dim)">Fino al sabato della sua settimana a un programma approvato si possono aggiungere <b>uscite fuori programma</b> (tutti, valide subito; il dirigente le approva dalla notifica o da «Approvazione»). Compilatori e dirigenti possono anche modificare o annullare righe: le modifiche formano la revisione (Rev.) che il dirigente approva. Si conserva solo l\'ultima revisione.</p>';
+      '<p style="font-size:13px;color:var(--dim)">Fino al sabato della sua settimana a un programma approvato si possono aggiungere <b>uscite fuori programma</b> (tutti): restano in attesa finché il dirigente non le approva (dalla notifica o da «Approvazione»), poi l\'equipaggio viene avvisato. Compilatori e dirigenti possono anche modificare o annullare righe: le modifiche formano la revisione (Rev.) che il dirigente approva. Si conserva solo l\'ultima revisione.</p>';
     $('main').innerHTML = h;
     document.querySelectorAll('[data-pdf]').forEach(function(b){ b.onclick = function(){ scaricaPdf(b.dataset.pdf); }; });
     document.querySelectorAll('[data-apri]').forEach(function(b){ b.onclick = function(){ apriArchivio(Number(b.dataset.apri)); }; });
@@ -1073,6 +1270,7 @@ function vAdmin(){
       '<details style="margin-top:8px"><summary style="cursor:pointer;font-size:13px">Cambia token del bot</summary><p style="font-size:13px;margin:8px 0">Su Telegram apri <b>@BotFather</b> → <span class="mono">/newbot</span> → copia il <b>token</b> e incollalo qui (salvandolo Telegram si riattiva).</p>' +
       '<div class="row"><input id="tgtoken" type="password" placeholder="123456789:AA…" style="flex:1 1 220px;min-height:42px;border:1px solid #cfc6b4;border-radius:6px;padding:8px 10px"><button class="btn" id="tgsalva">Salva token</button></div></details></section>' +
       '<section class="card"><h2>Allinea codici dal programma in uso</h2><p style="font-size:13px;margin-top:0">Copia il foglio CODICI del programma attuale in questo. Da fare <b>il giorno del passaggio</b>, quando sul vecchio programma non si inseriscono più uscite.</p><div id="codbox"></div><div class="row"><button class="btn" id="bcodA">Anteprima</button><button class="btn pri hidden" id="bcodC">Conferma allineamento</button></div></section>';
+    h += '<section class="card"><h2>Completa righe vecchie</h2><p style="font-size:13px;margin-top:0">Alle uscite salvate prima del tipo di intervento assegna il tipo quando la matrice ne ha <b>uno solo</b> (con le aliquote previste *). Le altre mostrano il tasto «Scegli tipo e aliquote».</p><div id="ctbox"></div><button class="btn" id="bcompT">Completa righe vecchie</button></section>';
     h += '<section class="card"><h2>Prepara nuova settimana</h2><p style="font-size:13px;margin-top:0">Svuota il foglio, riporta i blocchi alla dimensione iniziale, passa al n. ' + (Number(p.numero) + 1) + ' con le date della settimana dopo e J2 = NO. Possibile solo con il programma approvato e archiviato.</p><button class="btn warn" id="bnuovaS"' + (p.approvato && !p.revInCorso ? '' : ' disabled') + '>Prepara programma n. ' + (Number(p.numero) + 1) + '</button></section></div>';
     h += '</div>';
     $('main').innerHTML = h;
@@ -1100,6 +1298,7 @@ function vAdmin(){
       var tk = $('tgtoken').value.trim(); if (!tk) return toast('Incolla il token');
       api('telegramConfig', { tokenBot: tk }).then(function(r){ toast('Bot @' + r.bot + ' attivo'); S.sett.telegram = { configurato: true, bot: r.bot, collegato: S.sett.telegram && S.sett.telegram.collegato }; vAdmin(); }).catch(function(e){ toast(e.message); });
     };
+    $('bcompT').onclick = function(){ api('completaTipi').then(function(r){ $('ctbox').innerHTML = '<div class="msg ok">Tipo assegnato a ' + r.fatte + ' uscite. Da scegliere a mano: ' + r.restano + '.</div>'; }).catch(function(e){ toast(e.message); }); };
     $('bcodA').onclick = function(){ codici(false); };
     $('bcodC').onclick = function(){ if (confirm('Sostituire il foglio CODICI con quello del programma in uso?')) codici(true); };
     $('bnuovaS').onclick = function(){
@@ -1235,6 +1434,7 @@ function leggiHash(){
   var m = h.match(/^#approva-(\d+)/);
   if (h === '#notifiche') S.vista = 'notifiche';
   else if (h === '#avvisi' && isDir()) S.vista = 'avvisi';
+  else if (h === '#limiti' && (isLab() || isAdmin())) S.vista = 'limiti';
   else if (m && isDir()) { S.vista = 'approva'; S.approvaNum = Number(m[1]); }
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
 }
@@ -1255,9 +1455,10 @@ function apriEsito(numero, id, descr, dopo){
   d.querySelectorAll('[data-es]').forEach(function(b){ b.onclick = function(){ esito = b.dataset.es; d.querySelectorAll('[data-es]').forEach(function(x){ x.classList.toggle('on', x === b); }); }; });
   $('esno').onclick = function(){ d.remove(); };
   $('esok').onclick = function(){
-    api('esitoUscita', { numero: numero, id: id, esito: esito, motivo: $('esmot').value }).then(function(){
-      d.remove(); toast('Segnalato: equipaggio e dirigente avvisati'); aggiornaContatori(); if (dopo) dopo();
-    }).catch(function(e){ toast(e.message); });
+    $('esok').disabled = true;   // una sola segnalazione
+    api('esitoUscita', { numero: numero, id: id, esito: esito, motivo: $('esmot').value }).then(function(r){
+      d.remove(); toast(r && r.gia ? r.messaggio : 'Segnalato: equipaggio e dirigente avvisati'); aggiornaContatori(); if (dopo) dopo();
+    }).catch(function(e){ $('esok').disabled = false; toast(e.message); });
   };
 }
 
