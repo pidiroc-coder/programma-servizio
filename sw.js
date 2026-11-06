@@ -1,6 +1,6 @@
 // Service worker: tiene in cache solo l'app (i dati arrivano sempre dal server) e mostra le notifiche
 importScripts('config.js');
-var CACHE = 'pds-v9';
+var CACHE = 'pds-v10';
 var FILES = ['./', 'index.html', 'config.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'comuni.json'];
 self.addEventListener('install', function (e) { e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); })); self.skipWaiting(); });
 self.addEventListener('activate', function (e) {
@@ -54,7 +54,7 @@ self.addEventListener('notificationclick', function (e) {
   e.notification.close();
   if (az === 'an') { e.waitUntil(apriApp('#notifiche')); return; }   // Annullata/rinviata: serve il motivo, si apre l'app
   if (az) {   // tasto premuto nella notifica (Android): Accetto / Assente / Approva / Rifiuta
-    e.waitUntil(chiamaApi({ azione: 'pushAzione', az: az, u: d.u, firma: d.firma, ts: d.ts, riga: d.riga, numero: d.numero, id: d.id }).then(function (j) {
+    e.waitUntil(chiamaApi({ azione: 'pushAzione', az: az, u: d.u, firma: d.firma, ts: d.ts, rev: d.rev, nm: d.nm, riga: d.riga, numero: d.numero, id: d.id }).then(function (j) {
       return self.registration.showNotification(j.ok ? '✔ Fatto' : '⚠️ Non riuscito', {
         body: j.ok ? ((j.dati && j.dati.messaggio) || '') : (j.errore || 'Errore') + ' – Tocca per aprire l\'app.', icon: 'icon-192.png', tag: 'esito', data: { link: d.link } });
     }).catch(function () { return apriApp(d.link); }));

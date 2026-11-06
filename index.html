@@ -118,6 +118,9 @@ label.f.miss .chips{border-color:var(--err);background:#fff8f7}
 .labg td,.labg th{text-align:center}.labg td:first-child,.labg th:first-child{text-align:left}
 .piede{max-width:1180px;margin:10px auto 24px;padding:0 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:var(--dim)}
 .piede button{border:0;background:none;color:var(--pri);font:600 13px 'IBM Plex Sans',sans-serif;cursor:pointer;padding:8px 0;text-decoration:underline}
+/* una linea rossa tra un'uscita e l'altra dello stesso giorno/sede */
+table.rows.uscite tbody tr + tr td{border-top:3px solid #c0392b}
+.sotto{font-size:12.5px;color:var(--dim);margin-top:2px}.sotto span{font-weight:600;color:var(--label)}
 .pill{display:inline-block;background:#fff8e6;color:var(--warn);border:1px solid #e9c97a;border-radius:10px;padding:1px 8px;font-size:12px;font-weight:700}
 .aqris{font-size:12.5px;color:var(--pri);font-weight:600;margin-top:2px}
 .perc{margin-top:6px;font-size:13px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -133,6 +136,9 @@ ul.clean{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;g
   table.rows:not(.griglia) thead{display:none}
   table.rows:not(.griglia),table.rows:not(.griglia) tbody,table.rows:not(.griglia) tr,table.rows:not(.griglia) td{display:block;width:100%}
   table.rows:not(.griglia) tr{border-bottom:1px solid var(--line);padding:6px 0}
+  table.rows.uscite tbody tr{border-bottom:0;padding:8px 0}
+  table.rows.uscite tbody tr + tr{border-top:3px solid #c0392b}
+  table.rows.uscite tbody tr + tr td{border-top:0}
   table.rows:not(.griglia) td{border:0;padding:2px 10px}
   header.top .in{padding:6px 12px;gap:6px 10px;min-height:0}
   .brand{order:1;font-size:16px}
@@ -181,6 +187,7 @@ function api(azione, dati, silenzioso){
     .then(function(j){
       if (!j.ok) {
         if (j.errore === 'SESSIONE_SCADUTA') { esci(true); throw new Error('Sessione scaduta: accedi di nuovo.'); }
+        if (j.errore === 'SESSIONE_CAMBIATA') { esci(true); vistaLogin('Il tuo accesso è cambiato (utente disattivato o ruolo modificato): entra di nuovo.'); throw new Error('Accesso cambiato: entra di nuovo.'); }
         if (j.errore === 'CAMBIO_PASSWORD') { vistaCambioObbligatorio(''); throw new Error('Scegli prima una nuova password.'); }
         throw new Error(j.errore || 'Errore');
       }
@@ -249,7 +256,10 @@ function vistaCambioObbligatorio(temporanea, err){
 }
 
 function esci(silenzioso){
-  if (!silenzioso && S.token) api('logout', {}, true).catch(function(){});
+  if (!silenzioso && !confirm('Uscire?\nSu questo telefono non arriveranno più notifiche finché non rientri.')) return;
+  var tok = ls('pds_push_tok');
+  if (tok && S.token) { ls('pds_push_tok', null); api('pushRimuovi', { fcmToken: tok }, true).catch(function(){}).then(function(){ if (!silenzioso) api('logout', {}, true).catch(function(){}); }); }
+  else if (!silenzioso && S.token) api('logout', {}, true).catch(function(){});
   ls('pds_token', null); ls('pds_utente', null); MEMO = {};
   S.token = null; S.utente = null; S.ed = null;
   vistaLogin();
@@ -322,11 +332,12 @@ function attivita(){ return (S.liste && S.liste.attivita) || []; }
 function attInfo(nome){ nome = String(nome || '').toUpperCase(); return attivita().filter(function(a){ return a.nome === nome; })[0] || null; }
 // righe salvate prima delle attività: con campioni = campionamento, senza = la prima uscita con campioni eventuali (sopralluogo)
 function attDi(r){
+  if (r.att && !attInfo(r.att) && attivita().length) return { nome: String(r.att).toUpperCase(), uscita: !(String(r.auto || '').toUpperCase() === 'NO AUTO' && !(Number(r.n) > 0)), campioni: Number(r.n) > 0 ? 'SI' : 'NO', sconosciuta: true };
   var a = attInfo(r.att); if (a) return a;
   if (Number(r.n) > 0) return attivita().filter(function(x){ return x.campioni === 'SI'; })[0] || null;
   return attivita().filter(function(x){ return x.uscita && x.campioni === 'EVENTUALI'; })[0] || null;
 }
-function attChip(r){ var a = attDi(r); if (!a) return ''; return ' <span class="chip ' + (a.uscita ? 'att' : 'imp') + '">' + esc(bello(a.nome).replace(/\//g, ' / ')) + '</span>'; }
+function attChip(r){ var a = attDi(r); if (!a) return ''; return ' <span class="chip ' + (a.uscita ? 'att' : 'imp') + '">' + esc(bello(a.nome).replace(/\//g, ' / ')) + '</span>' + (a.sconosciuta ? ' <span class="chip warn" title="Rinominata o tolta dal foglio ATTIVITA\': modifica la riga e scegli l\'attività">⚠ attività non più nel foglio ATTIVITA\'</span>' : ''); }
 function luoghi(){
   var l = (S.liste && S.liste.luoghi) || [];
   if (l.length) return l;
@@ -607,7 +618,7 @@ function vCompila(){
       h += '<div class="sede">' + esc(b.sede) + '</div>';
       var bz = miei.filter(function(x){ return x.giorno === g.key && wa_sede(x.sede) === wa_sede(b.sede); });
       if (!b.righe.length && !bz.length) { h += '<div class="empty">Nessuna uscita.</div>'; return; }
-      h += '<div class="tw"><table class="rows"><thead><tr><th>Stato</th><th>UOC</th><th>Auto</th><th>Località</th><th>Guida</th><th>Affidatario</th><th>Equipaggio / note</th><th>CdC</th><th>Matrice</th><th>N.</th><th>Codici</th><th>Salvata da</th><th></th></tr></thead><tbody>';
+      h += '<div class="tw"><table class="rows uscite"><thead><tr><th>Stato</th><th>UOC</th><th>Auto</th><th>Comune / Località</th><th>Guida</th><th>Affidatario</th><th>Equipaggio</th><th>Note</th><th>CdC</th><th>Matrice</th><th>N.</th><th>Codici</th><th>Salvata da</th><th></th></tr></thead><tbody>';
       b.righe.forEach(function(r){ h += rigaHtml(r, g.key, b.sede); });
       bz.forEach(function(x){ h += rigaBozza(x); });
       h += '</tbody></table></div>';
@@ -638,7 +649,7 @@ function rigaBozza(b){
   var vecchia = (Date.now() - dataIt(b.creata)) > 48 * 3600 * 1000;
   var c = function(k, l){ return '<td data-l="' + l + '"' + (d[k] ? '' : ' class="vu"') + '>' + esc(d[k] || '') + '</td>'; };
   return '<tr class="r-bozza"><td><span class="chip ' + (vecchia ? 'err' : 'warn') + '">' + (vecchia ? 'Bozza ferma da 48 ore' : 'Bozza') + '</span></td>' +
-    c('uoc', 'UOC') + c('auto', 'Auto') + '<td data-l="Località"><b>' + esc(d.loc || '(senza località)') + '</b></td>' + c('guida', 'Guida') + c('aff', 'Affidatario') + c('eq', 'Equipaggio') + c('cdc', 'CdC') +
+    c('uoc', 'UOC') + c('auto', 'Auto') + '<td data-l="Comune / Località">' + (d.loc ? locHtml(d) : '<b>(senza località)</b>') + '</td>' + c('guida', 'Guida') + c('aff', 'Affidatario') + '<td data-l="Equipaggio"' + (eqDividi(d.eq).nomi ? '' : ' class="vu"') + '>' + esc(eqDividi(d.eq).nomi) + '</td><td data-l="Note"' + (eqDividi(d.eq).note ? '' : ' class="vu"') + '>' + esc(eqDividi(d.eq).note) + '</td>' + c('cdc', 'CdC') +
     c('mat', 'Matrice') + '<td data-l="N." class="mono">' + esc(d.n || '') + '</td><td data-l="Codici" class="hint">non assegnati</td>' +
     '<td data-l="Bozza di" style="font-size:12px;color:var(--dim)">' + esc(b.autore) + '<br>' + esc(b.aggiornata) + '</td>' +
     '<td class="act">' + (b.mia || isAdmin() ? '<button class="btn small pri" data-bozza="' + esc(b.id) + '">Riprendi</button>' : '') + '</td></tr>';
@@ -669,10 +680,11 @@ function rigaHtml(r, giorno, sede){
   }
   if (r.stato !== 'Annullata' && (p.archivio ? p.modificabile : puoModificare())) az += ' <button class="btn small" data-dup="' + r.riga + '" title="Nuova uscita con gli stessi dati: matrice, tipo e numero di campioni da scegliere">⧉ Duplica</button>';
   if (r.stato !== 'Annullata' && puoModificare() && serveTipo(r)) az += ' <button class="btn small warn" data-taq="' + r.riga + '">Scegli tipo e aliquote</button>';
-  if (p.archivio && r.oggi && isDir() && r.stato !== 'Annullata' && !/^(ANNULLATA|DA RIPROGRAMMARE|RINVIATA)/.test(r.esito || '')) az += ' <button class="btn small err" data-esarch="' + esc(r.id) + '">⛔ Non si fa</button>';
-  var vu = function(k){ return r[k] || (prec[k] && r.modifica === 'MODIFICATA') ? '' : ' class="vu"'; };   // campi vuoti: nascosti sul telefono
-  return '<tr class="' + cls + '"><td>' + chip + '</td><td data-l="UOC"' + vu('uoc') + '>' + cel('uoc') + '</td><td data-l="Auto"' + vu('auto') + '>' + cel('auto') + '</td><td data-l="Località"><b>' + cel('loc') + '</b></td>' +
-    '<td data-l="Guida"' + vu('guida') + '>' + cel('guida') + '</td><td data-l="Affidatario"' + vu('aff') + '>' + cel('aff') + '</td><td data-l="Equipaggio"' + vu('eq') + '>' + cel('eq') + '</td><td data-l="CdC"' + vu('cdc') + '>' + cel('cdc') + '</td>' +
+  if (p.archivio && r.oggi && isDir() && r.stato !== 'Annullata' && !(attDi(r) && !attDi(r).uscita) && !/^(ANNULLATA|DA RIPROGRAMMARE|RINVIATA)/.test(r.esito || '')) az += ' <button class="btn small err" data-esarch="' + esc(r.id) + '">⛔ Non si fa</button>';
+  var vu = function(k){ return r[k] || (prec[k] && r.modifica === 'MODIFICATA') ? '' : ' class="vu"'; };
+  var eqR = eqDividi(r.eq);   // la colonna I del foglio è «EQUIPAGGIO/NOTE»: in app nomi e note separati   // campi vuoti: nascosti sul telefono
+  return '<tr class="' + cls + '"><td>' + chip + '</td><td data-l="UOC"' + vu('uoc') + '>' + cel('uoc') + '</td><td data-l="Auto"' + vu('auto') + '>' + cel('auto') + '</td><td data-l="' + (attDi(r) && !attDi(r).uscita ? 'Luogo' : 'Comune / Località') + '">' + locHtml(r, cel('loc', locDividi(r).luogo)) + '</td>' +
+    '<td data-l="Guida"' + vu('guida') + '>' + cel('guida') + '</td><td data-l="Affidatario"' + vu('aff') + '>' + cel('aff') + '</td><td data-l="' + (attDi(r) && !attDi(r).uscita ? 'Convocati' : 'Equipaggio') + '"' + (eqR.nomi ? '' : ' class="vu"') + '>' + cel('eq', eqR.nomi) + '</td><td data-l="Note"' + (eqR.note ? '' : ' class="vu"') + '>' + esc(eqR.note) + '</td><td data-l="CdC"' + vu('cdc') + '>' + cel('cdc') + '</td>' +
     '<td data-l="Matrice"' + vu('mat') + '>' + cel('mat') + (r.tipo ? '<div class="hint">' + esc(r.tipo) + '</div>' : '') + (r.aliq ? '<div class="aqris">' + aqTesto(r.aliq) + '</div>' : '') + '</td><td data-l="N." class="mono">' + cel('n') + '</td>' +
     '<td data-l="Codici" class="mono' + (r.cod ? '' : ' vu') + '" style="font-size:12px;font-weight:700">' + cel('cod') + '</td><td data-l="Salvata da" style="font-size:12px;color:var(--dim)">' + esc(r.chi) + (r.quando ? '<br>' + esc(r.quando) : '') + '</td><td class="act">' + az + (r.stato !== 'Annullata' && !(attDi(r) && !attDi(r).uscita) ? ' ' + tastoMappa(sede, r.loc) + ' ' + tastoVerbali(r.mat, r.tipo, r.n, true) : '') + '</td></tr>';
 }
@@ -828,8 +840,10 @@ function mancanti(d){
   if (!d.uoc) m.push('uoc'); if (!d.auto) m.push('auto'); if (!String(d.loc || '').trim()) m.push('loc');
   var n = String(d.n || '').trim().toUpperCase(), num = Number(n);
   var A = attInfo(d.att);
+  if (!d._senza && !(A && !A.uscita) && !String(d._locNote || '').trim()) m.push('locnota');
   if (attivita().length && !A) m.push('att');
   if (!n || (n !== 'NO' && !(num > 0 && Math.floor(num) === num)) || (A && A.campioni === 'SI' && !(num > 0))) m.push('n');
+  if (num > MAX_CAMPIONI) m.push('nmax');
   if (A && !A.uscita && !d._eq.length && !String(d._eqNote || '').trim()) m.push('eq');
   var con = n && n !== 'NO' && num > 0;
   if (con && !d.mat) m.push('mat'); if (con && !d.cdc) m.push('cdc');
@@ -842,7 +856,8 @@ function mancanti(d){
   return m;
 }
 var MAX_NOTE = 40;   // note brevi: nel programma stampato devono restare leggibili
-var NOMI = { att: 'Attività', eq: 'Persone convocate', uoc: 'UOC', auto: 'Auto', loc: 'Località', n: 'Numero campioni (numero o NO)', mat: 'Matrice', cdc: 'Centro di costo', aff: 'Affidatario', art: 'Art. 5', tipo: 'Tipo di intervento', aliq: 'Aliquote (premi «Conferma aliquote»)' };
+var MAX_CAMPIONI = 15;
+var NOMI = { nmax: 'Massimo ' + 15 + ' campioni per uscita (dividi in più righe)', att: 'Attività', eq: 'Persone convocate', uoc: 'UOC', auto: 'Auto', loc: 'Comune / tragitto', locnota: 'Località da raggiungere', n: 'Numero campioni (numero o NO)', mat: 'Matrice', cdc: 'Centro di costo', aff: 'Affidatario', art: 'Art. 5', tipo: 'Tipo di intervento', aliq: 'Aliquote (premi «Conferma aliquote»)' };
 
 function disegnaEditor(){
   var ed = S.ed, d = ed.dati, L = S.liste;
@@ -881,8 +896,9 @@ function disegnaEditor(){
       f('descr', 'Descrizione (max 40)', '<input id="e_descr" maxlength="40" value="' + esc(ed.lu.descr) + '" placeholder="es. Riunione PFAS con Regione">', 'wide')
     :
       f('auto', 'Auto *', '<select data-k="auto">' + opz(L.auto.map(function(a){ return { v: a.nome, t: a.nome + (a.sede ? ' (' + a.sede + ')' : '') }; }), d.auto) + '</select>') +
-      f('loc', 'Località da raggiungere (tragitto) *', chipsHtml('e_tappe', d._tappe, d._tappe.length ? 'Aggiungi un\'altra tappa…' : 'Scrivi un comune: Molise per primi…', true) +
+      f('loc', 'Comune / tragitto *', chipsHtml('e_tappe', d._tappe, d._tappe.length ? 'Aggiungi un\'altra tappa…' : 'Scrivi un comune: Molise per primi…', true) +
         '<span class="hint">Le tappe vanno nell\'ordine del tragitto. Fuori elenco: «Aggiungi come testo libero».</span>' + percHtml(ed), 'loc3') +
+      f('locnota', 'Località da raggiungere * (a mano, max 80)', '<input id="e_locnota" maxlength="80" value="' + esc(d._locNote || '') + '" placeholder="es. Depuratore C.da Pantano, Pozzo n. 3">', 'wide') +
       f('guida', 'Personale guida', '<select data-k="guida">' + opz(L.guide, d.guida) + '</select>') +
       f('aff', 'Personale affidatario', '<select data-k="aff">' + opz(L.personale, d.aff) + '</select>') +
       f('art', 'Art. 5 c.2', '<select data-k="art">' + opz(L.articoli, d.art) + '</select>') +
@@ -944,6 +960,7 @@ function disegnaEditor(){
     luogoComponi(d, ed.lu); disegnaEditor();
   };
   ['altro', 'sala', 'descr'].forEach(function(k){ var el = $('e_' + k); if (el) el.oninput = function(){ ed.lu[k] = this.value.trim(); luogoComponi(d, ed.lu); aggiornaMancanti(); }; });
+  if ($('e_locnota')) $('e_locnota').oninput = function(){ d._locNote = this.value.replace(/[()]/g, '').trim(); componi(d); aggiornaMancanti(); };
   if ($('e_nota')) $('e_nota').oninput = function(){ d._eqNote = this.value.trim(); $('e_notanum').textContent = '(' + this.value.length + '/' + MAX_NOTE + ' caratteri)'; componi(d); };
   $('e_giorno').onchange = function(){ ed.giorno = this.value; };
   $('e_sede').onchange = function(){ ed.sede = this.value; };
@@ -1045,16 +1062,23 @@ function chipEsito(e){
   return ' <span class="chip err" title="' + esc(e) + '">Annullata' + mot + '</span>';
 }
 var MIE = {};
+function locDividi(r){
+  var loc = String(r.loc || ''), m = loc.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
+  var a = attDi(r), imp = !!(a && !a.uscita);
+  return { luogo: m ? m[1] : loc, extra: m ? m[2] : '', etichetta: imp ? 'Descrizione' : 'Località' };
+}
+function locHtml(r, princ){ var x = locDividi(r); return '<b>' + (princ !== undefined ? princ : esc(x.luogo)) + '</b>' + (x.extra ? '<div class="sotto"><span>' + x.etichetta + ':</span> ' + esc(x.extra) + '</div>' : ''); }
+function eqDividi(eq){ var t = { loc: '', eq: String(eq || '') }; preparaChips(t); return { nomi: t._eq.join('-'), note: t._eqNote }; }
 function vc(l, v){ return '<td data-l="' + l + '"' + (v ? '' : ' class="vu"') + '>' + esc(v) + '</td>'; }
 function rigaUscita(r){
   var k = r.numero + '|' + r.id; MIE[k] = r;
   var ann = /^(ANNULLATA|DA RIPROGRAMMARE|RINVIATA)/.test(r.esito || '');
   var imp = attDi(r) && !attDi(r).uscita;
   var az = !ann && r.oggi && !imp ? '<button class="btn small err" data-esmie="' + esc(k) + '">⛔ Non si fa</button> ' : '';
-  return '<tr><td data-l="Data" class="mono"><b>' + esc(r.data) + '</b>' + attChip(r) + (r.fp ? ' <span class="chip warn">Fuori programma</span>' : '') + chipEsito(r.esito) + '</td><td data-l="Giorno">' + esc(r.giornoLabel) + '</td><td data-l="Sede">' + esc(r.sede) + '</td><td data-l="Località"><b>' + esc(r.loc) + '</b></td>' + vc('Auto', imp ? '' : r.auto) + vc('Guida', r.guida) + vc('Affidatario', r.aff) + vc(imp ? 'Convocati' : 'Equipaggio', r.eq) +
+  return '<tr><td data-l="Data" class="mono"><b>' + esc(r.data) + '</b>' + attChip(r) + (r.fp ? ' <span class="chip warn">Fuori programma</span>' : '') + chipEsito(r.esito) + '</td><td data-l="Giorno">' + esc(r.giornoLabel) + '</td><td data-l="Sede">' + esc(r.sede) + '</td><td data-l="' + (imp ? 'Luogo' : 'Comune / Località') + '">' + locHtml(r) + '</td>' + vc('Auto', imp ? '' : r.auto) + vc('Guida', r.guida) + vc('Affidatario', r.aff) + vc(imp ? 'Convocati' : 'Equipaggio', eqDividi(r.eq).nomi) + vc('Note', eqDividi(r.eq).note) +
     '<td data-l="Matrice"' + (r.mat ? '' : ' class="vu"') + '>' + esc(r.mat) + (r.tipo ? '<div class="hint">' + esc(r.tipo) + '</div>' : '') + (r.aliq ? '<div class="aqris">' + aqTesto(r.aliq) + '</div>' : '') + '</td><td data-l="N." class="mono' + (imp ? ' vu' : '') + '">' + esc(r.n) + '</td><td class="act">' + az + (r.fatta || ann || imp ? '' : tastoMappa(r.sede, r.loc) + ' ' + tastoVerbali(r.mat, r.tipo, r.n, true)) + '</td></tr>';
 }
-var TESTA_USCITE = '<thead><tr><th>Data</th><th>Giorno</th><th>Sede</th><th>Località</th><th>Auto</th><th>Guida</th><th>Affidatario</th><th>Equipaggio / note</th><th>Matrice</th><th>N.</th><th></th></tr></thead>';
+var TESTA_USCITE = '<thead><tr><th>Data</th><th>Giorno</th><th>Sede</th><th>Comune / Località</th><th>Auto</th><th>Guida</th><th>Affidatario</th><th>Equipaggio</th><th>Note</th><th>Matrice</th><th>N.</th><th></th></tr></thead>';
 
 function mieHtml(m){
   if (S.mieMese === undefined || S.mieMese === null) S.mieMese = m.meseCorrente;
@@ -1076,7 +1100,7 @@ function mieHtml(m){
   if (S.mieMese >= 0 && m.mesi[S.mieMese]) {
     var mm = m.mesi[S.mieMese];
     h += '<div class="sede" style="margin-top:12px">Uscite di ' + esc(mm.nome) + ' ' + esc(m.anno) + ' (' + mm.uscite + ')</div>' +
-      (mm.elenco.length ? '<div class="tw"><table class="rows">' + TESTA_USCITE + '<tbody>' + mm.elenco.map(rigaUscita).join('') + '</tbody></table></div>' : '<div class="empty">Nessuna uscita.</div>');
+      (mm.elenco.length ? '<div class="tw"><table class="rows uscite">' + TESTA_USCITE + '<tbody>' + mm.elenco.map(rigaUscita).join('') + '</tbody></table></div>' : '<div class="empty">Nessuna uscita.</div>');
   }
   // prossime uscite (settimane non finite)
   var prossime = 0;
@@ -1085,7 +1109,7 @@ function mieHtml(m){
     if (!futuri.length) return;
     prossime += futuri.length;
     h += '<div class="sede" style="margin-top:16px">Prossime uscite · programma n. ' + esc(pg.numero) + (pg.rev ? ' · Rev.' + esc(pg.rev) : '') + ' · ' + esc(pg.settimana) + '</div>' +
-      '<div class="tw"><table class="rows">' + TESTA_USCITE + '<tbody>' + futuri.map(rigaUscita).join('') + '</tbody></table></div>';
+      '<div class="tw"><table class="rows uscite">' + TESTA_USCITE + '<tbody>' + futuri.map(rigaUscita).join('') + '</tbody></table></div>';
   });
   if (!prossime) h += '<div class="empty" style="margin-top:12px">Nessuna prossima uscita approvata per te.</div>';
   return h + '</section>';
@@ -1172,7 +1196,7 @@ function vMie(){
 }
 
 // ---------------- notifiche personali (tutti) ----------------
-var TIPO_N = { 'LABORATORIO': 'Laboratorio', 'LIMITE': 'Limite campioni', 'APPROVATO': 'Programma approvato', 'REVISIONE': 'Revisione', 'FUORI PROGRAMMA': 'Uscita fuori programma', 'ANNULLATA': 'Uscita annullata', 'CONFERMA USCITA': 'Uscita di oggi: si fa?', 'USCITA ANNULLATA': 'Uscita annullata / da riprogrammare' };
+var TIPO_N = { 'CONVOCAZIONE': 'Convocazione', 'LABORATORIO': 'Laboratorio', 'LIMITE': 'Limite campioni', 'APPROVATO': 'Programma approvato', 'REVISIONE': 'Revisione', 'FUORI PROGRAMMA': 'Uscita fuori programma', 'ANNULLATA': 'Uscita annullata', 'CONFERMA USCITA': 'Uscita di oggi: si fa?', 'USCITA ANNULLATA': 'Uscita annullata / da riprogrammare' };
 function vNotifiche(){
   $('main').innerHTML = '<div class="eyebrow">Notifiche</div><h1>Le mie notifiche</h1><div class="empty">Caricamento…</div>';
   leggi('mieNotifiche', {}, function(a){ if (S.vista !== 'notifiche') return;
@@ -1181,15 +1205,15 @@ function vNotifiche(){
     var voce = function(x){
       var st = /^ASSENTE/.test(x.stato) ? '<span class="chip err">Assente</span>' : (/^INFO/.test(x.stato) ? '<span class="chip att">Informativa</span>' : (/^IN CODA/.test(x.stato) ? '<span class="chip warn">Arriva alle 7</span>' : (x.accettabile ? '<span class="chip warn">Da accettare</span>' : '<span class="chip ok">Accettata</span>')));
       return '<div class="notif"><div class="t"><div class="row" style="gap:8px">' + st + '<b>' + esc(TIPO_N[x.tipo] || x.tipo) + ' · ' + esc(x.rif.replace(/^n\./, 'n. ').replace(/ FP$/, '').replace(/ USCITA .*$/, '')) + '</b><span class="hint">arrivata ' + esc(x.data) +
-        (x.consegnata ? ' · <span style="color:var(--ok)">✔ consegnata sul telefono</span>' : '') + (x.accettabile && x.emailTra ? ' · <span style="color:var(--err)">email tra ' + x.emailTra + ' min se non accetti</span>' : '') +
+        (x.consegnata ? ' · <span style="color:var(--ok)">✔ consegnata sul telefono</span>' : '') + (x.accettabile && x.riepilogo ? ' · <span>se non accetti: riepilogo email alle 17</span>' : '') + (x.accettabile && x.emailTra ? ' · <span style="color:var(--err)">email tra ' + x.emailTra + ' min se non accetti</span>' : '') +
         (!x.accettabile && !/^INFO/.test(x.stato) ? ' · ' + esc(/^ASSENTE/.test(x.stato) ? 'segnalata ' : 'accettata ') + esc(x.quando) + (/RICEVUTO/.test(x.stato) ? ' (Telegram)' : '') : '') + '</span></div>' +
         '<pre>' + esc(x.testo) + '</pre>' + (/^ASSENTE · /.test(x.stato) ? '<div class="hint">Nota: ' + esc(x.stato.replace(/^ASSENTE · /, '')) + '</div>' : '') +
         '<div id="as' + x.riga + '"></div></div>' +
         (x.accettabile ? (x.tipo === 'CONFERMA USCITA' ? '<div class="az"><button class="btn pri small" data-acc="' + x.riga + '">✅ Confermo</button><button class="btn err small" data-esrif="' + esc(x.rif) + '">⛔ Non si fa</button></div>'
-          : '<div class="az"><button class="btn pri small" data-acc="' + x.riga + '">Accetto</button><button class="btn err small" data-ass="' + x.riga + '">Assente – riprogrammare equipaggio</button></div>') : '') + '</div>';
+          : '<div class="az"><button class="btn pri small" data-acc="' + x.riga + '">Accetto</button><button class="btn err small" data-ass="' + x.riga + '">' + (x.tipo === 'CONVOCAZIONE' ? 'Non posso partecipare' : 'Assente – riprogrammare equipaggio') + '</button></div>') : '') + '</div>';
     };
     var h = '<div class="eyebrow">Notifiche</div><h1>Le mie notifiche' + (da.length ? ' <span class="badge" style="font-size:14px">' + da.length + '</span>' : '') + '</h1>' +
-      '<p class="hint" style="margin-top:-6px">Le notifiche arrivano anche sul telefono; i tasti nella notifica valgono come quelli qui. Se una notifica non viene accettata entro 15 minuti arriva anche per email. Se sai già che quel giorno non ci sarai premi «Assente – riprogrammare equipaggio»: l\'avviso va al dirigente.</p>' +
+      '<p class="hint" style="margin-top:-6px">Le notifiche arrivano anche sul telefono; i tasti nella notifica valgono come quelli qui. Le notifiche urgenti (uscita annullata, «si fa?» del giorno) se non accettate arrivano per email dopo 15 minuti; le altre finiscono in un unico riepilogo email alle 17. Se sai già che quel giorno non ci sarai premi «Assente – riprogrammare equipaggio»: l\'avviso va al dirigente.</p>' +
       '<section class="card" style="margin-bottom:16px"><h2>Da accettare (' + da.length + ')</h2>' + (da.length ? da.map(voce).join('') : '<div class="msg ok" style="margin:0">Nessuna notifica da accettare.</div>') + '</section>' +
       '<section class="card"><h2>Già accettate e informative</h2>' + (fatte.length ? fatte.map(voce).join('') : '<div class="empty">Nessuna.</div>') + '</section>';
     $('main').innerHTML = h;
@@ -1215,7 +1239,7 @@ function vAvvisi(){
     if (!S.progAvv || progs.indexOf(S.progAvv) === -1) S.progAvv = progs[0] || '';
     var delProg = a.filter(function(x){ return progAvv(x.rif) === S.progAvv; });
     var acc = function(x){ return /^(RICEVUTO|ACCETTATO)/.test(x.stato); }, ass = function(x){ return /^ASSENTE/.test(x.stato); };
-    var aperti = function(x){ return !acc(x) && !ass(x); };
+    var aperti = function(x){ return !acc(x) && !ass(x) && !/^(CHIUSA|INFO|IN CODA)/.test(x.stato) && x.tipo !== 'CONVOCAZIONE'; };
     var arrivata = function(x){ return !!x.consegnata || (x.canale === 'TELEGRAM' && !/ERRORE/.test(x.stato)); };
     var lista = S.filtroAvv === 'aperti' ? delProg.filter(aperti) : delProg;
     var h = '<div class="eyebrow">Notifiche inviate</div><h1>Avvisi</h1>' +
@@ -1251,7 +1275,7 @@ function vLimiti(){
     var h = '<div class="eyebrow">Responsabile di laboratorio</div><h1>Limiti superati' + (x.righe.length ? ' <span class="badge" style="font-size:14px">' + x.righe.length + '</span>' : '') + '</h1>' +
       '<p class="hint" style="margin-top:-6px">Uscite salvate oltre i limiti dei campioni (foglio MATRICI). «Approva» le lascia nel programma; «Rifiuta» le toglie (i codici risultano persi) e avvisa chi le ha inserite. Finché ce n\'è una in attesa il programma non si può approvare.</p>';
     if (!x.righe.length) h += '<div class="msg ok">Nessuna uscita in attesa.</div>';
-    else h += '<section class="card"><div class="tw"><table class="rows"><thead><tr><th>Programma</th><th>Giorno</th><th>Località</th><th>Matrice</th><th>Limite superato</th><th>Inserita da</th><th></th></tr></thead><tbody>' + x.righe.map(function(r){
+    else h += '<section class="card"><div class="tw"><table class="rows"><thead><tr><th>Programma</th><th>Giorno</th><th>Comune / Località</th><th>Matrice</th><th>Limite superato</th><th>Inserita da</th><th></th></tr></thead><tbody>' + x.righe.map(function(r){
       return '<tr><td data-l="Programma" class="mono">n. ' + esc(r.numero) + (r.fuori ? ' <span class="chip warn">Fuori programma</span>' : '') + '</td><td data-l="Giorno">' + esc(GIORNI[r.giorno] || r.giorno) + ' · ' + esc(r.sede) + '</td><td data-l="Località"><b>' + esc(r.loc) + '</b></td>' +
         '<td data-l="Matrice">' + esc(r.mat) + ' · <b>' + esc(r.n) + '</b></td><td data-l="Limite superato" style="color:var(--err)">' + esc(r.motivo) + '</td><td data-l="Inserita da" style="font-size:12.5px">' + esc(r.chi) + '<br>' + esc(r.quando) + '</td>' +
         '<td class="act">' + (x.puoDecidere ? '<button class="btn small pri" data-lap="' + esc(r.numero + '|' + r.id) + '">Approva</button> <button class="btn small err" data-lrf="' + esc(r.numero + '|' + r.id) + '">Rifiuta</button>' : '') + '</td></tr>';
@@ -1320,7 +1344,7 @@ function vApprova(numero){
       if (!confirm(rev ? 'Approvare la Rev.' + c.rev + ' del programma n. ' + c.programma.numero + ' e avvisare le persone coinvolte?' : 'Approvare il programma n. ' + c.programma.numero + '? Il foglio passerà subito alla settimana successiva.')) return;
       api('approva', numero ? { numero: numero } : {}).then(function(r){
         var t = (r.rev ? 'Rev.' + r.rev + ' del programma n. ' + r.numero + ' approvata' : 'Programma n. ' + r.numero + ' approvato') + '. PDF disponibili qui in Archivio.' +
-          (r.emailInviate ? ' Email inviate: ' + r.emailInviate + '.' : '') + (r.nuovoNumero ? ' In compilazione ora c\'è il programma n. ' + r.nuovoNumero + '.' : '');
+          (r.notificati ? ' Notifiche inviate a ' + r.notificati + ' persone (le vedi in «Avvisi»).' : '') + (r.nuovoNumero ? ' In compilazione ora c\'è il programma n. ' + r.nuovoNumero + '.' : '');
         S.msg = r.avviso ? { t: 'warn', x: t + ' ' + r.avviso } : { t: 'ok', x: t };
         return api('settimana').then(function(d){ S.sett = d; S.vista = 'archivio'; disegna(); });
       }).catch(function(e){ toast(e.message); });
@@ -1627,7 +1651,7 @@ function vAccount(){
   $('fpw').onsubmit = function(e){
     e.preventDefault(); var f = e.target;
     if (f.n.value !== f.r.value) return toast('Le due password non coincidono');
-    api('cambiaPassword', { vecchia: f.a.value, nuova: f.n.value }).then(function(){ toast('Password cambiata'); f.reset(); }).catch(function(er){ toast(er.message); });
+    api('cambiaPassword', { vecchia: f.a.value, nuova: f.n.value, fcmToken: ls('pds_push_tok') || '' }).then(function(){ toast('Password cambiata: gli altri dispositivi sono stati disconnessi'); f.reset(); }).catch(function(er){ toast(er.message); });
   };
   pushBox();
   if ($('tgbox')) tgBox();
