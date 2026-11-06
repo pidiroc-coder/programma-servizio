@@ -114,6 +114,8 @@ label.f.miss .chips{border-color:var(--err);background:#fff8f7}
 .aq .prev{margin-left:auto;font-size:11px;background:#e3efe9;color:var(--ok);border-radius:10px;padding:2px 8px}
 .aq .altre{margin-top:10px;border:2px dashed #c99a2e;border-radius:10px;padding:8px 10px;display:flex;gap:10px;align-items:center;background:#fff8e6;font-size:14px;cursor:pointer}
 .aq .altre input{width:20px;height:20px;accent-color:#8a5a00;flex:none}
+.chip.att{background:#e6eaf5;color:#2b3f7a}.chip.imp{background:#ece3f7;color:#5b2d8a}
+.labg td,.labg th{text-align:center}.labg td:first-child,.labg th:first-child{text-align:left}
 .pill{display:inline-block;background:#fff8e6;color:var(--warn);border:1px solid #e9c97a;border-radius:10px;padding:1px 8px;font-size:12px;font-weight:700}
 .aqris{font-size:12.5px;color:var(--pri);font-weight:600;margin-top:2px}
 .perc{margin-top:6px;font-size:13px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -152,7 +154,7 @@ ul.clean{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;g
 var API = (window.PDS_CONFIG && window.PDS_CONFIG.API_URL) || '';
 var S = { token: null, utente: null, liste: null, sett: null, vista: 'compila', giorno: null, ed: null, msg: null };
 var GIORNI = { LUN: 'Lunedì', MAR: 'Martedì', MER: 'Mercoledì', GIO: 'Giovedì', VEN: 'Venerdì', SAB: 'Sabato' };
-var CAMPI = ['uoc','auto','loc','guida','aff','art','eq','cdc','p','r','mat','n','tipo','aliq'];
+var CAMPI = ['uoc','auto','loc','guida','aff','art','eq','cdc','p','r','mat','n','tipo','aliq','att'];
 
 function $(id){ return document.getElementById(id); }
 function esc(t){ return String(t == null ? '' : t).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -190,6 +192,7 @@ function puoCompilare(){ return ['COMPILATORE','DIRIGENTE','ADMIN'].indexOf(ruol
 function isDir(){ return ruolo() === 'DIRIGENTE' || ruolo() === 'ADMIN'; }
 function isAdmin(){ return ruolo() === 'ADMIN'; }
 function isLab(){ return !!((S.utente && S.utente.lab) || (S.sett && S.sett.lab)); }
+function isAnalista(){ return !!((S.utente && S.utente.analista) || (S.sett && S.sett.analista) || isLab()); }
 function puoModificare(){ var p = F() && F().programma; return puoCompilare() && !(p && p.archivio && !p.modificabile && !isAdmin()); }
 
 // ---------------- avvio / login ----------------
@@ -310,6 +313,72 @@ var ALERT_FP = 'La presente uscita dovrà prima essere approvata dal dirigente. 
 function apriFuori(prefill, giorno, sede){
   alert(ALERT_FP);
   apriEditor({ giorno: giorno || (S.giorno && S.giorno !== 'TUTTI' ? S.giorno : primoGiorno()), sede: sede || sedeUtente(), dati: Object.assign({}, prefill || {}) });
+}
+
+// ---------------- attività (foglio ATTIVITA') e luoghi (foglio LUOGHI) ----------------
+function attivita(){ return (S.liste && S.liste.attivita) || []; }
+function attInfo(nome){ nome = String(nome || '').toUpperCase(); return attivita().filter(function(a){ return a.nome === nome; })[0] || null; }
+// righe salvate prima delle attività: con campioni = campionamento, senza = la prima uscita con campioni eventuali (sopralluogo)
+function attDi(r){
+  var a = attInfo(r.att); if (a) return a;
+  if (Number(r.n) > 0) return attivita().filter(function(x){ return x.campioni === 'SI'; })[0] || null;
+  return attivita().filter(function(x){ return x.uscita && x.campioni === 'EVENTUALI'; })[0] || null;
+}
+function attChip(r){ var a = attDi(r); if (!a) return ''; return ' <span class="chip ' + (a.uscita ? 'att' : 'imp') + '">' + esc(bello(a.nome).replace(/\//g, ' / ')) + '</span>'; }
+function luoghi(){
+  var l = (S.liste && S.liste.luoghi) || [];
+  if (l.length) return l;
+  return (F().sedi || []).map(function(x){ return { luogo: x, blocco: x }; }).concat([{ luogo: 'ONLINE', blocco: '' }]);
+}
+var ALTRO_LUOGO = 'ALTRO LUOGO…';
+// "SEDE CB – Sala 2 (Riunione PFAS)" <-> { luogo, altro, sala, descr }
+function luogoParse(loc){
+  loc = String(loc || '').trim();
+  var o = { luogo: '', altro: '', sala: '', descr: '' };
+  var m = loc.match(/^(.*?)\s*\(([^()]*)\)\s*$/); if (m) { loc = m[1]; o.descr = m[2]; }
+  var noto = luoghi().map(function(x){ return x.luogo; }).sort(function(a, b){ return b.length - a.length; }).filter(function(x){ return loc.toUpperCase().indexOf(x) === 0; })[0];
+  var resto;
+  if (noto) { o.luogo = noto; resto = loc.slice(noto.length); }
+  else { var i = loc.indexOf(' – '); o.luogo = loc ? ALTRO_LUOGO : ''; o.altro = i === -1 ? loc : loc.slice(0, i); resto = i === -1 ? '' : loc.slice(i); }
+  o.sala = resto.replace(/^\s*–\s*/, '').trim();
+  return o;
+}
+function luogoComponi(d, lu){
+  var base = lu.luogo === ALTRO_LUOGO ? String(lu.altro || '').trim().toUpperCase() : lu.luogo;
+  d.loc = base ? base + (lu.sala ? ' – ' + lu.sala : '') + (lu.descr ? ' (' + lu.descr + ')' : '') : '';
+}
+
+// ---------------- laboratorio (analisti) ----------------
+function labHtml(x){
+  if (!x.programmi.length) return '<section class="card" style="margin-bottom:16px"><h2>Programma della settimana</h2><div class="empty">Nessun programma approvato per questa settimana.</div></section>';
+  return x.programmi.map(function(pg){
+    var mats = Object.keys(pg.griglia).sort(), gg = ['LUN','MAR','MER','GIO','VEN','SAB'].filter(function(g){ return mats.some(function(m){ return pg.griglia[m][g]; }) || g !== 'SAB'; });
+    var tot = {};
+    var cella = function(c){ if (!c) return ''; var v = c.ora; var h = '';
+      if (c.prima !== c.ora) h += '<s style="color:var(--dim)">' + c.prima + '</s> ' + (c.ora ? '<b>' + c.ora + '</b>' : '<b style="color:var(--err)">0</b>');
+      else if (c.ora) h += String(c.ora);
+      if (c.agg) h += (h ? ' ' : '') + '<b style="color:var(--ok)">+' + c.agg + '</b>';
+      return h; };
+    var h = '<section class="card" style="margin-bottom:16px"><div class="eyebrow" style="margin:0">Programma n. ' + esc(pg.numero) + ' · ' + esc(pg.settimana) + (pg.rev ? ' · Rev.' + esc(pg.rev) : '') + '</div><h2 style="margin:4px 0 8px">Campioni in arrivo in laboratorio</h2>' +
+      (x.matrici.length ? '<p class="hint" style="margin:0 0 6px">Solo le tue matrici: ' + esc(x.matrici.join(', ')) + '</p>' : '') +
+      (mats.length ? '<div class="tw"><table class="rows griglia labg"><thead><tr><th>Matrice</th>' + gg.map(function(g){ return '<th>' + g + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        mats.map(function(mt){ return '<tr><td>' + esc(mt) + '</td>' + gg.map(function(g){ var c = pg.griglia[mt][g]; if (c) tot[g] = (tot[g] || 0) + c.ora + c.agg; return '<td class="mono">' + cella(c) + '</td>'; }).join('') + '</tr>'; }).join('') +
+        '<tr><td><b>Totale</b></td>' + gg.map(function(g){ return '<td class="mono"><b>' + (tot[g] || '') + '</b></td>'; }).join('') + '</tr></tbody></table></div>' +
+        '<p class="hint" style="margin:6px 0 0">Solo uscite approvate. Barrato = cambiato dopo l\'approvazione · verde = aggiunte.</p>' : '<div class="empty">Nessun campione previsto.</div>');
+    if (pg.modifiche.length) h += '<h2 style="margin:14px 0 6px">Modifiche dopo l\'approvazione</h2><ul class="clean" style="font-size:14px">' + pg.modifiche.map(function(m){
+      var ch = m.tipo === 'MODIFICATA' ? '<span class="chip mod">Modificata Rev.' + esc(m.rev) + '</span>' : (m.tipo === 'FUORI PROGRAMMA' || m.tipo === 'AGGIUNTA' ? '<span class="chip add">' + (m.tipo === 'AGGIUNTA' ? 'Aggiunta' : 'Fuori programma') + '</span>' :
+        '<span class="chip err">' + (m.tipo === 'ANNULLATA' ? 'Annullata' : 'Da riprogrammare') + (m.motivo ? ' · ' + esc(m.motivo.toLowerCase()) : '') + '</span>');
+      return '<li>' + ch + ' <b>' + esc(m.giornoLabel) + ' · ' + esc(m.sede) + ' · ' + esc(m.loc) + '</b><div class="hint">' + esc(m.mat) + ' · ' +
+        (m.tipo === 'MODIFICATA' ? 'campioni ' + m.prima + ' → ' + m.n : (m.tipo === 'FUORI PROGRAMMA' || m.tipo === 'AGGIUNTA' ? m.n + ' campioni' + (m.aliq ? ' · ' + esc(m.aliq.toLowerCase()) : '') : m.n + ' campioni non arriveranno')) + '</div></li>';
+    }).join('') + '</ul>';
+    return h + '<button class="btn small" data-labapri="' + esc(pg.numero) + '">Apri il programma completo</button></section>';
+  }).join('');
+}
+function caricaLab(box){
+  if (!isAnalista() || !$(box)) return;
+  leggi('laboratorio', {}, function(x){ var b = $(box); if (!b) return; b.innerHTML = labHtml(x);
+    b.querySelectorAll('[data-labapri]').forEach(function(t){ t.onclick = function(){ apriArchivio(Number(t.dataset.labapri)); }; });
+  }).catch(function(){});
 }
 
 // ---------------- aliquote ----------------
@@ -448,7 +517,7 @@ function scaricaVerbali(mat, tipo, n){
 
 // ---------------- telaio ----------------
 function disegna(){
-  var voci = ruolo() === 'TUTTI' ? [['dash','Le mie uscite'],['notifiche','Notifiche'],['archivio','Archivio']] : [['dash','Dashboard'],['compila','In compilazione'],['notifiche','Notifiche'],['archivio','Archivio']];
+  var voci = ruolo() === 'TUTTI' ? [['dash', isAnalista() ? 'Dashboard' : 'Le mie uscite'],['notifiche','Notifiche'],['archivio','Archivio']] : [['dash','Dashboard'],['compila','In compilazione'],['notifiche','Notifiche'],['archivio','Archivio']];
   if (isDir()) { voci.splice(3, 0, ['approva','Approvazione']); voci.push(['avvisi','Avvisi']); }
   if (isLab() || isAdmin()) voci.push(['limiti','Limiti']);
   if (isAdmin()) voci.push(['admin','Amministrazione']);
@@ -456,7 +525,7 @@ function disegna(){
   $('app').innerHTML =
     '<header class="top"><div class="in"><div class="brand">PdS<span>·</span>ARPA Molise</div><nav class="menu" aria-label="Menu principale">' +
     voci.map(function(v){ return '<button data-v="' + v[0] + '" class="' + (S.vista === v[0] || (S.vista === 'archvista' && v[0] === 'archivio') ? 'on' : '') + '">' + v[1] + (v[0] === 'notifiche' ? '<span class="badge" id="nbadge" style="display:none"></span>' : '') + (v[0] === 'avvisi' ? '<span class="badge" id="abadge" style="display:none"></span>' : '') + (v[0] === 'limiti' ? '<span class="badge" id="lbadge" style="display:none"></span>' : '') + '</button>'; }).join('') +
-    '</nav><div class="who"><span>' + esc(u.nome || u.username) + ' · ' + esc(u.ruolo.toLowerCase()) + (isLab() ? ' + resp. lab' : '') + '</span><button id="bacc">Account</button><button id="besc">Esci</button></div></div></header><main id="main"></main>';
+    '</nav><div class="who"><span>' + esc(u.nome || u.username) + ' · ' + esc(u.ruolo.toLowerCase()) + (isLab() ? ' + resp. lab' : (isAnalista() ? ' + analista' : '')) + '</span><button id="bacc">Account</button><button id="besc">Esci</button></div></div></header><main id="main"></main>';
   document.querySelectorAll('nav.menu button').forEach(function(b){ b.onclick = function(){
     if (S.ed && Object.keys(S.ed.dati || {}).some(function(k){ var v = S.ed.dati[k]; return k.charAt(0) !== '_' && v; }) && !confirm('L\'uscita aperta non è salvata. Chiuderla?')) return;
     S.vista = b.dataset.v; ls('pds_vista', S.vista); S.msg = null; S.ed = null; S.arch = null;
@@ -582,6 +651,7 @@ function rigaHtml(r, giorno, sede){
   else if (r.mancanti && r.mancanti.length) chip = '<span class="chip err" title="Mancano: ' + esc(r.mancanti.join(', ')) + '">Da completare</span>';
   else chip = '<span class="chip warn" title="Completa ma non ancora salvata dall\'app">Da salvare</span>';
   if (r.rev && r.modifica && r.stato !== 'Annullata') chip += ' <span class="chip ' + (r.modifica === 'AGGIUNTA' ? 'add' : 'mod') + '">Rev.' + r.rev + '</span>';
+  chip += attChip(r);
   if (r.fuori) chip += ' <span class="chip warn">Fuori programma' + (r.attesa ? ' · in attesa del dirigente' : '') + '</span>';
   if (/^IN ATTESA/.test(r.sfora || '')) chip += ' <span class="chip err" title="' + esc(r.sfora) + '">Limite superato · in attesa resp. lab</span>';
   else if (/^APPROVATO/.test(r.sfora || '')) chip += ' <span class="chip ok" title="' + esc(r.sfora) + '">Limite superato · approvato dal lab</span>';
@@ -601,7 +671,7 @@ function rigaHtml(r, giorno, sede){
   return '<tr class="' + cls + '"><td>' + chip + '</td><td data-l="UOC"' + vu('uoc') + '>' + cel('uoc') + '</td><td data-l="Auto"' + vu('auto') + '>' + cel('auto') + '</td><td data-l="Località"><b>' + cel('loc') + '</b></td>' +
     '<td data-l="Guida"' + vu('guida') + '>' + cel('guida') + '</td><td data-l="Affidatario"' + vu('aff') + '>' + cel('aff') + '</td><td data-l="Equipaggio"' + vu('eq') + '>' + cel('eq') + '</td><td data-l="CdC"' + vu('cdc') + '>' + cel('cdc') + '</td>' +
     '<td data-l="Matrice"' + vu('mat') + '>' + cel('mat') + (r.tipo ? '<div class="hint">' + esc(r.tipo) + '</div>' : '') + (r.aliq ? '<div class="aqris">' + aqTesto(r.aliq) + '</div>' : '') + '</td><td data-l="N." class="mono">' + cel('n') + '</td>' +
-    '<td data-l="Codici" class="mono' + (r.cod ? '' : ' vu') + '" style="font-size:12px;font-weight:700">' + cel('cod') + '</td><td data-l="Salvata da" style="font-size:12px;color:var(--dim)">' + esc(r.chi) + (r.quando ? '<br>' + esc(r.quando) : '') + '</td><td class="act">' + az + (r.stato !== 'Annullata' ? ' ' + tastoMappa(sede, r.loc) + ' ' + tastoVerbali(r.mat, r.tipo, r.n, true) : '') + '</td></tr>';
+    '<td data-l="Codici" class="mono' + (r.cod ? '' : ' vu') + '" style="font-size:12px;font-weight:700">' + cel('cod') + '</td><td data-l="Salvata da" style="font-size:12px;color:var(--dim)">' + esc(r.chi) + (r.quando ? '<br>' + esc(r.quando) : '') + '</td><td class="act">' + az + (r.stato !== 'Annullata' && !(attDi(r) && !attDi(r).uscita) ? ' ' + tastoMappa(sede, r.loc) + ' ' + tastoVerbali(r.mat, r.tipo, r.n, true) : '') + '</td></tr>';
 }
 
 function dataIt(t){ var m = String(t || '').match(/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/); if (!m) return Date.now(); var d = new Date(); var x = new Date(d.getFullYear(), Number(m[2]) - 1, Number(m[1]), Number(m[3]), Number(m[4])); if (x > d) x.setFullYear(d.getFullYear() - 1); return x.getTime(); }
@@ -634,6 +704,7 @@ function modificaRiga(n){
 function duplica(n){
   var t = trovaRiga(n); if (!t) return;
   var d = {}; CAMPI.forEach(function(k){ if (['mat','tipo','n','aliq','p','r'].indexOf(k) === -1) d[k] = t.r[k]; });
+  if (!d.att) { var a0 = attDi(t.r); if (a0) d.att = a0.nome; }
   if (F().programma.archivio || F().programma.approvato) return apriFuori(d, t.giorno, t.sede);
   apriEditor({ giorno: t.giorno, sede: t.sede, dati: d, duplicata: true });
 }
@@ -648,7 +719,15 @@ function eliminaRiga(n){
 }
 
 // ---------------- editor uscita ----------------
-function apriEditor(ed){ S.ed = ed; S.ed.errore = null; preparaChips(ed.dati); ed.aq = aqDa(ed.dati.aliq, !!ed.dati.aliq); ed.perc = null; vCompila(); var box = $('edbox'); if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+function apriEditor(ed){ S.ed = ed; S.ed.errore = null;
+  var d = ed.dati;
+  if (ed.riga && !d.att && attivita().length) { var a0 = attDi(d); if (a0) d.att = a0.nome; }
+  var a = attInfo(d.att);
+  d._senza = !!(a && !a.uscita);
+  preparaChips(d); ed.aq = aqDa(d.aliq, !!d.aliq); ed.perc = null;
+  ed.camp = Number(d.n) > 0 ? 'SI' : 'NO';
+  ed.lu = d._senza ? luogoParse(d.loc) : { luogo: '', altro: '', sala: '', descr: '' };
+  vCompila(); var box = $('edbox'); if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 
 // ---- tappe (comuni) ed equipaggio: più valori ----
 function cercaComune(t){ t = String(t || '').trim().toUpperCase(); if (!t || !COMUNI) return null; for (var i = 0; i < COMUNI.length; i++) if (COMUNI[i][0] === t) return COMUNI[i]; return null; }
@@ -671,7 +750,7 @@ function preparaChips(d){
     var m2 = eq.match(/^(.*?)\s*(\([^()]*\))\s*$/); if (m2) { eq = m2[1]; n2 = m2[2]; }
     var nomi = [], altro = [];
     eq.split(/\s*[-+,;\/]\s*/).map(function(x){ return x.trim(); }).filter(String).forEach(function(x){
-      if (S.liste.personale.indexOf(x.toUpperCase()) !== -1) nomi.push(x.toUpperCase()); else altro.push(x);
+      if (nomiNoti().indexOf(x.toUpperCase()) !== -1) nomi.push(x.toUpperCase()); else altro.push(x);
     });
     d._eq = nomi;
     d._eqNote = altro.concat(n2 ? [n2] : []).join(' ');
@@ -679,16 +758,17 @@ function preparaChips(d){
   componi(d);
 }
 function componi(d){
-  d.loc = d._tappe.join(' - ') + (d._locNote ? ' (' + d._locNote + ')' : '');
+  if (!d._senza) d.loc = d._tappe.join(' - ') + (d._locNote ? ' (' + d._locNote + ')' : '');
   d.eq = d._eq.join('-') + (d._eqNote ? (d._eq.length ? '+' : '') + d._eqNote : '');
 }
 function chipsHtml(id, valori, ph, comuni){
   return '<div class="chips" id="' + id + '">' + valori.map(function(v, i){
     var c = comuni ? cercaComune(v) : null;
-    var lib = comuni ? !c : S.liste.personale.indexOf(v) === -1;
+    var lib = comuni ? !c : nomiNoti().indexOf(v) === -1;
     return '<span class="ch' + (lib ? ' lib' : '') + '" title="' + (lib ? 'testo libero' : '') + '">' + (comuni ? (i + 1) + '. ' : '') + esc(v) + (c ? ' <span class="n">' + esc(c[1]) + '</span>' : '') + '<button type="button" data-del="' + i + '" aria-label="Togli ' + esc(v) + '">×</button></span>';
   }).join('') + '<input type="text" placeholder="' + esc(ph) + '" autocomplete="off"><button type="button" class="tog">Elenco ▾</button><div class="sugg hidden"></div></div>';
 }
+function nomiNoti(){ var L = S.liste || {}; return (L.gruppi || []).concat(L.convocabili || [], L.personale || []); }
 function collegaChips(id, lista, fonte, comuni){
   var box = $(id); if (!box) return;
   var inp = box.querySelector('input'), sg = box.querySelector('.sugg'), tog = box.querySelector('.tog'), sel = 0, voci = [];
@@ -698,12 +778,12 @@ function collegaChips(id, lista, fonte, comuni){
   tog.onmousedown = function(e){ e.preventDefault(); };
   tog.onclick = function(){ if (sg.classList.contains('hidden')) { inp.focus(); mostra(); } else { sg.classList.add('hidden'); inp.blur(); } };
   box.querySelectorAll('[data-del]').forEach(function(b){ b.onclick = function(){ lista.splice(Number(b.dataset.del), 1); componi(S.ed.dati); disegnaEditor(); focusChips(id); }; });
-  function aggiungi(v){ v = String(v || '').trim(); if (!v) return; v = v.toUpperCase(); if (!comuni && S.liste.personale.indexOf(v) === -1) return; if (lista.indexOf(v) === -1 || comuni) lista.push(v); componi(S.ed.dati); disegnaEditor(); focusChips(id); }
+  function aggiungi(v){ v = String(v || '').trim(); if (!v) return; v = v.toUpperCase(); if (!comuni && fonte().indexOf(v) === -1) return; if (lista.indexOf(v) === -1 || comuni) lista.push(v); componi(S.ed.dati); disegnaEditor(); focusChips(id); }
   function mostra(){
     var t = inp.value.trim().toUpperCase();
     if (!t) {   // campo vuoto: elenco completo (comuni del Molise / tutto il personale)
       voci = fonte().filter(function(x){ return comuni ? !!x[2] : lista.indexOf(x) === -1; }); sel = 0;
-      sg.innerHTML = '<div class="nores"><span>' + (comuni ? 'Comuni del Molise · scrivi per cercare anche fuori regione' : 'Personale · scrivi per cercare') + '</span></div>' +
+      sg.innerHTML = '<div class="nores"><span>' + (comuni ? 'Comuni del Molise · scrivi per cercare anche fuori regione' : (S.ed && S.ed.dati._senza ? 'Gruppi e personale · scrivi per cercare' : 'Personale · scrivi per cercare')) + '</span></div>' +
         voci.map(function(x, i){ var n = comuni ? x[0] : x; return '<div data-i="' + i + '"><span>' + esc(n) + '</span>' + (comuni ? '<small>' + esc(x[1]) + '</small>' : '') + '</div>'; }).join('');
       sg.classList.remove('hidden');
       sg.querySelectorAll('[data-i]').forEach(function(el){ el.onmousedown = function(e){ e.preventDefault(); aggiungi(comuni ? voci[Number(el.dataset.i)][0] : voci[Number(el.dataset.i)]); }; });
@@ -744,7 +824,10 @@ function mancanti(d){
   var m = [];
   if (!d.uoc) m.push('uoc'); if (!d.auto) m.push('auto'); if (!String(d.loc || '').trim()) m.push('loc');
   var n = String(d.n || '').trim().toUpperCase(), num = Number(n);
-  if (!n || (n !== 'NO' && !(num > 0 && Math.floor(num) === num))) m.push('n');
+  var A = attInfo(d.att);
+  if (attivita().length && !A) m.push('att');
+  if (!n || (n !== 'NO' && !(num > 0 && Math.floor(num) === num)) || (A && A.campioni === 'SI' && !(num > 0))) m.push('n');
+  if (A && !A.uscita && !d._eq.length && !String(d._eqNote || '').trim()) m.push('eq');
   var con = n && n !== 'NO' && num > 0;
   if (con && !d.mat) m.push('mat'); if (con && !d.cdc) m.push('cdc');
   if ((con || (d.auto && d.auto.toUpperCase() !== 'NO AUTO')) && !d.aff) m.push('aff');
@@ -756,7 +839,7 @@ function mancanti(d){
   return m;
 }
 var MAX_NOTE = 40;   // note brevi: nel programma stampato devono restare leggibili
-var NOMI = { uoc: 'UOC', auto: 'Auto', loc: 'Località', n: 'Numero campioni (numero o NO)', mat: 'Matrice', cdc: 'Centro di costo', aff: 'Affidatario', art: 'Art. 5', tipo: 'Tipo di intervento', aliq: 'Aliquote (premi «Conferma aliquote»)' };
+var NOMI = { att: 'Attività', eq: 'Persone convocate', uoc: 'UOC', auto: 'Auto', loc: 'Località', n: 'Numero campioni (numero o NO)', mat: 'Matrice', cdc: 'Centro di costo', aff: 'Affidatario', art: 'Art. 5', tipo: 'Tipo di intervento', aliq: 'Aliquote (premi «Conferma aliquote»)' };
 
 function disegnaEditor(){
   var ed = S.ed, d = ed.dati, L = S.liste;
@@ -764,6 +847,12 @@ function disegnaEditor(){
   var titolo = ed.riga ? 'Modifica uscita' : (ed.bozzaId ? 'Bozza' : (S.arch ? 'Uscita fuori programma' : (ed.duplicata ? 'Nuova uscita (duplicata)' : 'Nuova uscita')));
   var tObj = tipoObj(d.mat, d.tipo);
   var mat = L.matrici[d.mat];
+  var A = attInfo(d.att), senza = !!(A && !A.uscita);
+  d._senza = senza;
+  // campioni: SI sempre, NO mai, EVENTUALI secondo «Sono previsti campioni?»; senza foglio ATTIVITA' come prima (spunta NO)
+  var conCamp = !A ? true : (A.campioni === 'SI' || (A.campioni === 'EVENTUALI' && ed.camp === 'SI'));
+  if (A && !conCamp) { d.n = 'NO'; d.tipo = ''; d.aliq = ''; }
+  if (A && conCamp && String(d.n).toUpperCase() === 'NO') d.n = '';
   var nNo = String(d.n || '').toUpperCase() === 'NO';
   var m = mancanti(d);
   function f(k, lab, ctrl, cls){ return '<label class="f ' + (cls || '') + (ed.provato && m.indexOf(k) !== -1 ? ' miss' : '') + '">' + lab + ctrl + '</label>'; }
@@ -774,26 +863,42 @@ function disegnaEditor(){
     (ed.errore ? '<div class="msg err">' + esc(ed.errore) + '</div>' : '') +
     '<div class="fields">' +
     f('giorno', 'Giorno', '<select id="e_giorno"' + (bloccaPos ? ' disabled' : '') + '>' + opz(giorniOpz, ed.giorno, false) + '</select>') +
-    f('sede', 'Sede', '<select id="e_sede"' + (bloccaPos ? ' disabled' : '') + '>' + opz(F().sedi, ed.sede, false) + '</select>') +
+    f('sede', senza ? 'Sede (blocco del programma)' : 'Sede', '<select id="e_sede"' + (bloccaPos ? ' disabled' : '') + '>' + opz(F().sedi, ed.sede, false) + '</select>') +
+    (attivita().length ? f('att', 'Attività *', '<select id="e_att"><option value="">— scegli l\'attività —</option>' +
+      [['Con uscita', true], ['Senza uscita (in sede / online)', false]].map(function(gr){
+        var v = attivita().filter(function(x){ return x.uscita === gr[1]; }); if (!v.length) return '';
+        return '<optgroup label="' + gr[0] + '">' + v.map(function(x){ return '<option value="' + esc(x.nome) + '"' + (x.nome === d.att ? ' selected' : '') + '>' + esc(x.nome) + (x.campioni === 'SI' ? ' · campioni' : (x.campioni === 'EVENTUALI' ? ' · campioni eventuali' : '')) + '</option>'; }).join('') + '</optgroup>';
+      }).join('') + '</select>', 'wide') : '') +
     f('uoc', 'UOC *', '<select data-k="uoc">' + opz(L.uoc, d.uoc) + '</select>') +
-    f('auto', 'Auto *', '<select data-k="auto">' + opz(L.auto.map(function(a){ return { v: a.nome, t: a.nome + (a.sede ? ' (' + a.sede + ')' : '') }; }), d.auto) + '</select>') +
-    f('loc', 'Località da raggiungere (tragitto) *', chipsHtml('e_tappe', d._tappe, d._tappe.length ? 'Aggiungi un\'altra tappa…' : 'Scrivi un comune: Molise per primi…', true) +
-      '<span class="hint">Le tappe vanno nell\'ordine del tragitto. Fuori elenco: «Aggiungi come testo libero».</span>' + percHtml(ed), 'loc3') +
-    f('guida', 'Personale guida', '<select data-k="guida">' + opz(L.guide, d.guida) + '</select>') +
-    f('aff', 'Personale affidatario', '<select data-k="aff">' + opz(L.personale, d.aff) + '</select>') +
-    f('art', 'Art. 5 c.2', '<select data-k="art">' + opz(L.articoli, d.art) + '</select>') +
-    f('cdc', 'Centro di costo', '<select data-k="cdc">' + opz(L.cdc.map(function(c){ return { v: c.codice, t: c.codice + (c.descrizione ? ' · ' + c.descrizione : '') }; }), d.cdc) + '</select>', 'wide') +
-    f('eq', 'Equipaggio', chipsHtml('e_eq', d._eq, 'Aggiungi una persona dall\'elenco…', false) +
-      '<span class="hint">Solo le persone scelte dall\'elenco ricevono le notifiche.</span>', 'riga') +
-    f('nota', '<span>Note <span class="hint" id="e_notanum">(' + (d._eqNote || '').length + '/' + MAX_NOTE + ' caratteri)</span></span>', '<input id="e_nota" maxlength="' + MAX_NOTE + '" placeholder="Facoltative, brevi: es. CC FOR IS, ASREM, PFAS-ANPA" value="' + esc(d._eqNote) + '">', 'riga') +
-    f('mat', 'Matrice', '<select data-k="mat"' + (nNo ? ' disabled' : '') + '>' + opz(Object.keys(L.matrici), d.mat) + '</select>') +
-    f('tipo', 'Tipo di intervento', '<select data-k="tipo"' + (nNo || !d.mat ? ' disabled' : '') + '>' + opz(tipiDi(d.mat).map(function(t){ return t.tipo; }), d.tipo) + '</select>' +
-      (d.mat && !tipiDi(d.mat).length ? '<span class="hint">Nessun tipo per questa matrice nel foglio TIPO DI INTERVENTO.</span>' : ''), 'wide') +
-    (tObj && !nNo && (tObj.aliquote.length || tObj.noCampioni) ? '<div class="f riga' + (ed.provato && m.indexOf('aliq') !== -1 ? ' miss' : '') + '" id="e_aq">' + aqHtml(tObj, ed.aq, 'e_') + '</div>' : '') +
-    f('n', 'Numero campioni *', '<input data-k="n" type="number" min="1" step="1" inputmode="numeric" value="' + (nNo ? '' : esc(d.n)) + '"' + (nNo ? ' disabled' : '') + '><span class="nobox"><input type="checkbox" id="e_no"' + (nNo ? ' checked' : '') + '> Nessun campione (NO)</span>') +
+    (senza ?
+      f('loc', 'Luogo *', '<select id="e_luogo"><option value="">—</option><optgroup label="Luoghi">' + luoghi().map(function(x){ return '<option value="' + esc(x.luogo) + '"' + (x.luogo === ed.lu.luogo ? ' selected' : '') + '>' + esc(x.luogo) + '</option>'; }).join('') +
+        '</optgroup><option value="' + ALTRO_LUOGO + '"' + (ed.lu.luogo === ALTRO_LUOGO ? ' selected' : '') + '>' + ALTRO_LUOGO + '</option></select>' +
+        (ed.lu.luogo === ALTRO_LUOGO ? '<input id="e_altro" placeholder="Scrivi il luogo (es. REGIONE MOLISE – VIA GENOVA)" value="' + esc(ed.lu.altro) + '" style="margin-top:6px">' : ''), 'wide') +
+      f('sala', 'Sala / dettaglio (facoltativo)', '<input id="e_sala" maxlength="40" value="' + esc(ed.lu.sala) + '" placeholder="es. Sala riunioni 2° piano">') +
+      f('descr', 'Descrizione (max 40)', '<input id="e_descr" maxlength="40" value="' + esc(ed.lu.descr) + '" placeholder="es. Riunione PFAS con Regione">', 'wide')
+    :
+      f('auto', 'Auto *', '<select data-k="auto">' + opz(L.auto.map(function(a){ return { v: a.nome, t: a.nome + (a.sede ? ' (' + a.sede + ')' : '') }; }), d.auto) + '</select>') +
+      f('loc', 'Località da raggiungere (tragitto) *', chipsHtml('e_tappe', d._tappe, d._tappe.length ? 'Aggiungi un\'altra tappa…' : 'Scrivi un comune: Molise per primi…', true) +
+        '<span class="hint">Le tappe vanno nell\'ordine del tragitto. Fuori elenco: «Aggiungi come testo libero».</span>' + percHtml(ed), 'loc3') +
+      f('guida', 'Personale guida', '<select data-k="guida">' + opz(L.guide, d.guida) + '</select>') +
+      f('aff', 'Personale affidatario', '<select data-k="aff">' + opz(L.personale, d.aff) + '</select>') +
+      f('art', 'Art. 5 c.2', '<select data-k="art">' + opz(L.articoli, d.art) + '</select>') +
+      f('cdc', 'Centro di costo', '<select data-k="cdc">' + opz(L.cdc.map(function(c){ return { v: c.codice, t: c.codice + (c.descrizione ? ' · ' + c.descrizione : '') }; }), d.cdc) + '</select>', 'wide')) +
+    f('eq', senza ? 'Persone convocate *' : 'Equipaggio', chipsHtml('e_eq', d._eq, senza ? 'Aggiungi un gruppo (TUTTO IL PERSONALE UOC …) o una persona…' : 'Aggiungi una persona dall\'elenco…', false) +
+      '<span class="hint">' + (senza ? 'Con «TUTTO IL PERSONALE UOC …» la notifica va a tutti quelli di quella UOC (colonna K di Personale guida).' : 'Solo le persone scelte dall\'elenco ricevono le notifiche.') + '</span>', 'riga') +
+    (senza ? '' : f('nota', '<span>Note <span class="hint" id="e_notanum">(' + (d._eqNote || '').length + '/' + MAX_NOTE + ' caratteri)</span></span>', '<input id="e_nota" maxlength="' + MAX_NOTE + '" placeholder="Facoltative, brevi: es. CC FOR IS, ASREM, PFAS-ANPA" value="' + esc(d._eqNote) + '">', 'riga')) +
+    (senza ? '' : (A && A.campioni === 'EVENTUALI' ? '<div class="f riga"><div class="aq" style="border:2px dashed #c99a2e;background:#fff8e6"><b>Sono previsti campioni?</b><div class="days" style="margin:8px 0 0"><button type="button" data-camp="SI" class="' + (ed.camp === 'SI' ? 'on' : '') + '">Sì</button><button type="button" data-camp="NO" class="' + (ed.camp !== 'SI' ? 'on' : '') + '">No</button></div><span class="hint">Se si decide sul posto metti «No» e al rientro modifica la riga.</span></div></div>' : '') +
+      f('mat', conCamp ? 'Matrice' : 'Matrice (facoltativa: su cosa si va)', '<select data-k="mat">' + opz(Object.keys(L.matrici), d.mat) + '</select>') +
+      (conCamp ?
+        f('tipo', 'Tipo di intervento', '<select data-k="tipo"' + (nNo || !d.mat ? ' disabled' : '') + '>' + opz(tipiDi(d.mat).map(function(t){ return t.tipo; }), d.tipo) + '</select>' +
+          (d.mat && !tipiDi(d.mat).length ? '<span class="hint">Nessun tipo per questa matrice nel foglio TIPO DI INTERVENTO.</span>' : ''), 'wide') +
+        (tObj && !nNo && (tObj.aliquote.length || tObj.noCampioni) ? '<div class="f riga' + (ed.provato && m.indexOf('aliq') !== -1 ? ' miss' : '') + '" id="e_aq">' + aqHtml(tObj, ed.aq, 'e_') + '</div>' : '') +
+        f('n', 'Numero campioni *', '<input data-k="n" type="number" min="1" step="1" inputmode="numeric" value="' + (nNo ? '' : esc(d.n)) + '"' + (nNo ? ' disabled' : '') + '>' +
+          (A ? '' : '<span class="nobox"><input type="checkbox" id="e_no"' + (nNo ? ' checked' : '') + '> Nessun campione (NO)</span>'))
+      : '')) +
     '</div>' +
     '<datalist id="dl_pers">' + L.personale.map(function(x){ return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
-    (mat ? '<div style="font-size:12.5px;color:var(--dim);margin-top:8px">' + esc(mat.nome) + ': giorni ' + esc(mat.giorni.join(', ')) + (mat.maxGiorno ? ' · max ' + mat.maxGiorno + (mat.perImpianti ? ' impianti' : '') + '/giorno' : '') + (mat.maxSettimana ? ' · max ' + mat.maxSettimana + '/settimana' + (mat.gruppo ? ' (' + esc(mat.gruppo) + ')' : '') : '') + (mat.oraLimite ? ' · ' + esc(mat.oraLimite) : '') + '</div>' : '') +
+    (mat && conCamp && !senza ? '<div style="font-size:12.5px;color:var(--dim);margin-top:8px">' + esc(mat.nome) + ': giorni ' + esc(mat.giorni.join(', ')) + (mat.maxGiorno ? ' · max ' + mat.maxGiorno + (mat.perImpianti ? ' impianti' : '') + '/giorno' : '') + (mat.maxSettimana ? ' · max ' + mat.maxSettimana + '/settimana' + (mat.gruppo ? ' (' + esc(mat.gruppo) + ')' : '') : '') + (mat.oraLimite ? ' · ' + esc(mat.oraLimite) : '') + '</div>' : '') +
     (ed.codici ? '<div style="font-size:12.5px;margin-top:6px">Codici attuali: <b class="mono">' + esc(ed.codici) + '</b>. Se aumenti i campioni si aggiunge il codice successivo (se è ancora libero, altrimenti si rigenerano tutti); se li diminuisci gli ultimi codici risultano persi.</div>' : '') +
     (d.tipo && Number(d.n) > 0 ? '<div class="row" style="margin-top:8px">' + tastoVerbali(d.mat, d.tipo, d.n) + '</div>' : '') +
     '<div id="e_manc" style="font-size:13px;margin-top:10px;color:' + (m.length ? 'var(--err)' : 'var(--ok)') + '">' + (m.length ? 'Da completare: ' + m.map(function(k){ return NOMI[k]; }).join(', ') : 'Riga completa: si può salvare.') + '</div>' +
@@ -815,12 +920,31 @@ function disegnaEditor(){
   });
   aqCollega($('e_aq'), tObj, ed.aq, 'e_', function(a){ d.aliq = a.conf ? aqStr(a) : ''; disegnaEditor(); });
   collegaPerc(ed);
-  collegaChips('e_tappe', d._tappe, function(){ return COMUNI || []; }, true);
-  collegaChips('e_eq', d._eq, function(){ return S.liste.personale; }, false);
-  $('e_nota').oninput = function(){ d._eqNote = this.value.trim(); $('e_notanum').textContent = '(' + this.value.length + '/' + MAX_NOTE + ' caratteri)'; componi(d); };
+  if ($('e_tappe')) collegaChips('e_tappe', d._tappe, function(){ return COMUNI || []; }, true);
+  collegaChips('e_eq', d._eq, function(){ return senza ? (L.gruppi || []).concat(L.convocabili || L.personale) : L.personale; }, false);
+  if ($('e_att')) $('e_att').onchange = function(){
+    var prima = attInfo(d.att); d.att = this.value; var a = attInfo(d.att);
+    if (a && !a.uscita) {   // impegno senza uscita: niente auto, tragitto, campioni
+      d.auto = 'NO AUTO'; d.art = ''; d.guida = ''; d.aff = ''; d.n = 'NO'; d.mat = ''; d.tipo = ''; d.aliq = ''; d._tappe = []; d._locNote = '';
+      if (!prima || prima.uscita) { var lu = luoghi().filter(function(x){ return x.blocco === ed.sede || x.luogo === ed.sede; })[0]; ed.lu = { luogo: lu ? lu.luogo : '', altro: '', sala: '', descr: '' }; }
+      d._senza = true; luogoComponi(d, ed.lu);
+    } else if (prima && !prima.uscita) { d._senza = false; d.loc = ''; d.auto = ''; preparaChips(Object.assign(d, { _tappe: null })); }
+    if (a && a.campioni === 'NO') { d.n = 'NO'; d.tipo = ''; d.aliq = ''; }
+    if (a && a.campioni === 'SI' && d.n === 'NO') d.n = '';
+    if (a && a.campioni === 'EVENTUALI') ed.camp = Number(d.n) > 0 ? 'SI' : 'NO';
+    disegnaEditor();
+  };
+  document.querySelectorAll('[data-camp]').forEach(function(b){ b.onclick = function(){ ed.camp = b.dataset.camp; if (ed.camp === 'NO') { d.n = 'NO'; d.tipo = ''; d.aliq = ''; } else if (d.n === 'NO') d.n = ''; disegnaEditor(); }; });
+  if ($('e_luogo')) $('e_luogo').onchange = function(){
+    ed.lu.luogo = this.value; var lu = luoghi().filter(function(x){ return x.luogo === ed.lu.luogo; })[0];
+    if (lu && lu.blocco && F().sedi.indexOf(lu.blocco) !== -1 && !bloccaPos) ed.sede = lu.blocco;
+    luogoComponi(d, ed.lu); disegnaEditor();
+  };
+  ['altro', 'sala', 'descr'].forEach(function(k){ var el = $('e_' + k); if (el) el.oninput = function(){ ed.lu[k] = this.value.trim(); luogoComponi(d, ed.lu); aggiornaMancanti(); }; });
+  if ($('e_nota')) $('e_nota').oninput = function(){ d._eqNote = this.value.trim(); $('e_notanum').textContent = '(' + this.value.length + '/' + MAX_NOTE + ' caratteri)'; componi(d); };
   $('e_giorno').onchange = function(){ ed.giorno = this.value; };
   $('e_sede').onchange = function(){ ed.sede = this.value; };
-  $('e_no').onchange = function(){ if (this.checked) { d.n = 'NO'; d.mat = ''; d.tipo = ''; d.aliq = ''; } else d.n = ''; disegnaEditor(); };
+  if ($('e_no')) $('e_no').onchange = function(){ if (this.checked) { d.n = 'NO'; d.mat = ''; d.tipo = ''; d.aliq = ''; } else d.n = ''; disegnaEditor(); };
   collegaVerbali();
   $('e_salva').onclick = salvaRiga;
   if ($('e_bozza')) $('e_bozza').onclick = salvaBozza;
@@ -922,9 +1046,10 @@ function vc(l, v){ return '<td data-l="' + l + '"' + (v ? '' : ' class="vu"') + 
 function rigaUscita(r){
   var k = r.numero + '|' + r.id; MIE[k] = r;
   var ann = /^(ANNULLATA|DA RIPROGRAMMARE|RINVIATA)/.test(r.esito || '');
-  var az = !ann && r.oggi ? '<button class="btn small err" data-esmie="' + esc(k) + '">⛔ Non si fa</button> ' : '';
-  return '<tr><td data-l="Data" class="mono"><b>' + esc(r.data) + '</b>' + (r.fp ? ' <span class="chip warn">Fuori programma</span>' : '') + chipEsito(r.esito) + '</td><td data-l="Giorno">' + esc(r.giornoLabel) + '</td><td data-l="Sede">' + esc(r.sede) + '</td><td data-l="Località"><b>' + esc(r.loc) + '</b></td>' + vc('Auto', r.auto) + vc('Guida', r.guida) + vc('Affidatario', r.aff) + vc('Equipaggio', r.eq) +
-    '<td data-l="Matrice"' + (r.mat ? '' : ' class="vu"') + '>' + esc(r.mat) + (r.tipo ? '<div class="hint">' + esc(r.tipo) + '</div>' : '') + (r.aliq ? '<div class="aqris">' + aqTesto(r.aliq) + '</div>' : '') + '</td><td data-l="N." class="mono">' + esc(r.n) + '</td><td class="act">' + az + (r.fatta || ann ? '' : tastoMappa(r.sede, r.loc) + ' ' + tastoVerbali(r.mat, r.tipo, r.n, true)) + '</td></tr>';
+  var imp = attDi(r) && !attDi(r).uscita;
+  var az = !ann && r.oggi && !imp ? '<button class="btn small err" data-esmie="' + esc(k) + '">⛔ Non si fa</button> ' : '';
+  return '<tr><td data-l="Data" class="mono"><b>' + esc(r.data) + '</b>' + attChip(r) + (r.fp ? ' <span class="chip warn">Fuori programma</span>' : '') + chipEsito(r.esito) + '</td><td data-l="Giorno">' + esc(r.giornoLabel) + '</td><td data-l="Sede">' + esc(r.sede) + '</td><td data-l="Località"><b>' + esc(r.loc) + '</b></td>' + vc('Auto', imp ? '' : r.auto) + vc('Guida', r.guida) + vc('Affidatario', r.aff) + vc(imp ? 'Convocati' : 'Equipaggio', r.eq) +
+    '<td data-l="Matrice"' + (r.mat ? '' : ' class="vu"') + '>' + esc(r.mat) + (r.tipo ? '<div class="hint">' + esc(r.tipo) + '</div>' : '') + (r.aliq ? '<div class="aqris">' + aqTesto(r.aliq) + '</div>' : '') + '</td><td data-l="N." class="mono' + (imp ? ' vu' : '') + '">' + esc(r.n) + '</td><td class="act">' + az + (r.fatta || ann || imp ? '' : tastoMappa(r.sede, r.loc) + ' ' + tastoVerbali(r.mat, r.tipo, r.n, true)) + '</td></tr>';
 }
 var TESTA_USCITE = '<thead><tr><th>Data</th><th>Giorno</th><th>Sede</th><th>Località</th><th>Auto</th><th>Guida</th><th>Affidatario</th><th>Equipaggio / note</th><th>Matrice</th><th>N.</th><th></th></tr></thead>';
 
@@ -935,6 +1060,7 @@ function mieHtml(m){
     '<div class="row" style="gap:22px"><div class="kpi"><div class="l">Uscite a ' + esc(m.mese.nome) + '</div><div class="v">' + m.mese.uscite + '</div></div>' +
     '<div class="kpi"><div class="l">Già fatte</div><div class="v">' + m.mese.fatte + '</div></div>' +
     (m.mese.annullate ? '<div class="kpi"><div class="l">Annullate</div><div class="v">' + m.mese.annullate + '</div></div>' : '') +
+    (m.mese.impegni ? '<div class="kpi"><div class="l">Impegni (riunioni, corsi…)</div><div class="v">' + m.mese.impegni + '</div></div>' : '') +
     '<div class="kpi"><div class="l">Totale ' + esc(m.anno) + '</div><div class="v">' + m.totaleAnno + '</div></div></div></div>';
   // riepilogo mese per mese
   h += '<div class="row" style="justify-content:space-between;margin:14px 0 6px"><b style="font-size:14px">Riepilogo ' + esc(m.anno) + ' mese per mese</b>' +
@@ -966,7 +1092,7 @@ function collegaMie(ridisegna){
   if ($('bfuori')) $('bfuori').onclick = function(){ nuovaFuori(); };
   document.querySelectorAll('[data-esmie]').forEach(function(b){ b.onclick = function(){ var r = MIE[b.dataset.esmie]; apriEsito(r.numero, r.id, r.giornoLabel + ' · ' + r.sede + ' · ' + r.loc, ridisegna); }; });
   document.querySelectorAll('[data-ripro]').forEach(function(b){ b.onclick = function(){ var r = MIE[b.dataset.ripro], d = {};
-    ['uoc','auto','loc','guida','aff','art','eq','cdc','mat','n','tipo','aliq'].forEach(function(k){ if (r[k] !== undefined && r[k] !== null) d[k] = String(r[k]); });
+    ['uoc','auto','loc','guida','aff','art','eq','cdc','mat','n','tipo','aliq','att'].forEach(function(k){ if (r[k] !== undefined && r[k] !== null) d[k] = String(r[k]); });
     nuovaFuori(d); }; });
   collegaVerbali();
   document.querySelectorAll('[data-mese]').forEach(function(b){ b.onclick = function(){ var i = Number(b.dataset.mese); S.mieMese = S.mieMese === i ? -1 : i; ridisegna(); }; });
@@ -996,8 +1122,9 @@ function csvTutti(t){
 
 function vDash(){
   if (ruolo() === 'TUTTI') return vMie();
-  $('main').innerHTML = intestazione('Dashboard') + bannerPush() + '<div id="miebox"></div><div id="tutbox"></div><div id="statbox"><div class="empty">Caricamento…</div></div>';
+  $('main').innerHTML = intestazione('Dashboard') + bannerPush() + '<div id="labbox"></div><div id="miebox"></div><div id="tutbox"></div><div id="statbox"><div class="empty">Caricamento…</div></div>';
   collegaBannerPush();
+  caricaLab('labbox');
   var disMie = function(){ leggi('mieUscite', { anno: S.mieAnno || 0 }, function(m){ if (S.vista !== 'dash' || !$('miebox')) return; $('miebox').innerHTML = mieHtml(m); collegaMie(disMie); }).catch(function(){}); };
   disMie();
   var disTutti = function(){ leggi('riepilogoTutti', { anno: S.tutAnno || 0 }, function(t){ if (S.vista !== 'dash' || !$('tutbox')) return; $('tutbox').innerHTML = tuttiHtml(t);
@@ -1030,11 +1157,11 @@ function vDash(){
   }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
 }
 function vMie(){
-  var ban = bannerPush();
-  $('main').innerHTML = '<div class="eyebrow">' + esc(S.utente.nome || S.utente.username) + '</div><h1>Le mie uscite</h1>' + ban + '<div class="empty">Caricamento…</div>';
-  collegaBannerPush();
-  leggi('mieUscite', { anno: S.mieAnno || 0 }, function(m){ if (S.vista !== 'dash') return;
-    $('main').innerHTML = '<div class="eyebrow">' + esc(S.utente.nome || S.utente.username) + '</div><h1>Le mie uscite</h1>' + ban + mieHtml(m);
+  var ban = bannerPush(), tit = isAnalista() ? 'Dashboard' : 'Le mie uscite';
+  $('main').innerHTML = '<div class="eyebrow">' + esc(S.utente.nome || S.utente.username) + '</div><h1>' + tit + '</h1>' + ban + '<div id="labbox"></div><div id="miebox"><div class="empty">Caricamento…</div></div>';
+  collegaBannerPush(); caricaLab('labbox');
+  leggi('mieUscite', { anno: S.mieAnno || 0 }, function(m){ if (S.vista !== 'dash' || !$('miebox')) return;
+    $('miebox').innerHTML = mieHtml(m);
     collegaMie(vMie);
     collegaBannerPush();
   }).catch(function(e){ $('main').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
